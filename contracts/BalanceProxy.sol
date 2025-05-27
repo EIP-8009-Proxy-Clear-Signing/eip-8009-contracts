@@ -75,11 +75,15 @@ contract BalanceProxy is IBalanceProxy {
     /// @dev Internal function to check if a balance is sufficient
     /// @param balance Balance to check
     function _balanceCheck(Balance memory balance) internal view {
-        if (IERC20(balance.token).balanceOf(balance.target) < balance.balance) {
+        uint256 actual = balance.token == address(0)
+            ? balance.target.balance
+            : IERC20(balance.token).balanceOf(balance.target);
+        if (actual < balance.balance) {
             revert InsufficientBalance(
                 balance.token,
                 balance.target,
-                balance.balance
+                balance.balance,
+                actual
             );
         }
     }
@@ -87,18 +91,26 @@ contract BalanceProxy is IBalanceProxy {
     /// @dev Calldata version of internal function to check if a balance is sufficient
     /// @param balance Balance to check
     function _balanceCheckCalldata(Balance calldata balance) internal view {
-        if (IERC20(balance.token).balanceOf(balance.target) < balance.balance) {
+        uint256 actual = balance.token == address(0)
+            ? balance.target.balance
+            : IERC20(balance.token).balanceOf(balance.target);
+        if (actual < balance.balance) {
             revert InsufficientBalance(
                 balance.token,
                 balance.target,
-                balance.balance
+                balance.balance,
+                actual
             );
         }
     }
 
     /// @dev Internal function to transfer and approve a balance
     /// @param balance Balance to transfer and approve
+    /// @dev If the token is ETH, this function does nothing
     function _transferAndApprove(Balance memory balance) internal {
+        if (balance.token == address(0)) {
+            return;
+        }
         IERC20(balance.token).transferFrom(
             msg.sender,
             address(this),
@@ -109,7 +121,11 @@ contract BalanceProxy is IBalanceProxy {
 
     /// @dev Calldata version of internal function to transfer and approve a balance
     /// @param balance Balance to transfer and approve
+    /// @dev If the token is ETH, this function does nothing
     function _transferAndApproveCalldata(Balance calldata balance) internal {
+        if (balance.token == address(0)) {
+            return;
+        }
         IERC20(balance.token).transferFrom(
             msg.sender,
             address(this),
@@ -137,4 +153,6 @@ contract BalanceProxy is IBalanceProxy {
             IERC20(balance.token).transfer(balance.target, balance.balance);
         }
     }
+
+    receive() external payable {}
 }

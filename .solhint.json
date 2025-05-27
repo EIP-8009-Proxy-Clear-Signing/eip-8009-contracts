@@ -2,10 +2,8 @@
   "extends": "solhint:recommended",
   "rules": {
     "no-unused-vars": "error",
-    "compiler-version": ["error", "^0.8.0"],
+    "compiler-version": ["error", "^0.8.27"],
     "const-name-snakecase": "error",
-    "contract-name-camelcase": "error",
-    "event-name-camelcase": "error",
     "func-name-mixedcase": "error",
     "func-visibility": ["warn", { "ignoreConstructors": true }],
     "func-param-name-mixedcase": "error",

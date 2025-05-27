@@ -16,7 +16,12 @@ interface IBalanceProxy {
     /// @param token Token address
     /// @param target Target address
     /// @param balance Balance
-    error InsufficientBalance(address token, address target, uint256 balance);
+    error InsufficientBalance(
+        address token,
+        address target,
+        uint256 balance,
+        uint256 actual
+    );
 
     /// @notice Error thrown when a call fails
     /// @param target Target address
