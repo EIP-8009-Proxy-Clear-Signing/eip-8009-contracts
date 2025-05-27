@@ -41,7 +41,7 @@ npm run coverage
 ### Deploy contracts
 
 ```shell
-npm run deploy ./ignition/modules/lock.ts -- --parameters ./ignition/parameters.json --network <network-name>
+npm run deploy ./ignition/modules/balance-proxy.ts -- --network <network-name>
 ```
 
 ### Run code analyzers
