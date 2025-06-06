@@ -10,12 +10,12 @@ import {IBalanceProxy} from "./interfaces/IBalanceProxy.sol";
 contract BalanceProxy is IBalanceProxy {
     /// @inheritdoc IBalanceProxy
     function proxyCall(
+        Balance[] memory postBalances,
         Balance[] memory preBalances,
         Balance[] memory approvals,
         address target,
         bytes memory data,
-        Balance[] memory withdrawals,
-        Balance[] memory postBalances
+        Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
         uint256 i;
         for (i = 0; i < preBalances.length; i++) {
@@ -42,12 +42,12 @@ contract BalanceProxy is IBalanceProxy {
 
     /// @inheritdoc IBalanceProxy
     function proxyCallCalldata(
+        Balance[] calldata postBalances,
         Balance[] calldata preBalances,
         Balance[] calldata approvals,
         address target,
         bytes calldata data,
-        Balance[] calldata withdrawals,
-        Balance[] calldata postBalances
+        Balance[] calldata withdrawals
     ) external payable returns (bytes memory) {
         uint256 i;
         for (i = 0; i < preBalances.length; i++) {

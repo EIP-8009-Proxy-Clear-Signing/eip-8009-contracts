@@ -29,36 +29,36 @@ interface IBalanceProxy {
     error CallFailed(address target, bytes data);
 
     /// @notice Proxy call to a target contract with specified balances and approvals
+    /// @param postBalances Balances to check after the call
     /// @param preBalances Balances to check before the call
     /// @param approvals Approvals to make before the call
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
-    /// @param postBalances Balances to check after the call
     /// @return Result of the call
     function proxyCall(
+        Balance[] memory postBalances,
         Balance[] memory preBalances,
         Balance[] memory approvals,
         address target,
         bytes memory data,
-        Balance[] memory withdrawals,
-        Balance[] memory postBalances
+        Balance[] memory withdrawals
     ) external payable returns (bytes memory);
 
     /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
+    /// @param postBalances Balances to check after the call
     /// @param preBalances Balances to check before the call
     /// @param approvals Approvals to make before the call
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
-    /// @param postBalances Balances to check after the call
     /// @return result Result of the call
     function proxyCallCalldata(
+        Balance[] calldata postBalances,
         Balance[] calldata preBalances,
         Balance[] calldata approvals,
         address target,
         bytes calldata data,
-        Balance[] calldata withdrawals,
-        Balance[] calldata postBalances
+        Balance[] calldata withdrawals
     ) external payable returns (bytes memory);
 }
