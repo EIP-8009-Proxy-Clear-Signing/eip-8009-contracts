@@ -2,6 +2,7 @@
 pragma solidity ^0.8.27;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IBalanceProxy} from "./interfaces/IBalanceProxy.sol";
 
 /// @title BalanceProxy
@@ -67,6 +68,78 @@ contract BalanceProxy is IBalanceProxy {
         }
         for (i = 0; i < postBalances.length; i++) {
             _balanceCheckCalldata(postBalances[i]);
+        }
+
+        return result;
+    }
+
+    /// @inheritdoc IBalanceProxy
+    function proxyCallMetadata(
+        BalanceMetadata[] memory postBalances,
+        BalanceMetadata[] memory preBalances,
+        BalanceMetadata[] memory approvals,
+        address target,
+        bytes memory data,
+        BalanceMetadata[] memory withdrawals
+    ) external payable returns (bytes memory) {
+        uint256 i;
+        for (i = 0; i < preBalances.length; i++) {
+            _checkMetadata(preBalances[i]);
+            _balanceCheck(preBalances[i].balance);
+        }
+        for (i = 0; i < approvals.length; i++) {
+            _checkMetadata(approvals[i]);
+            _transferAndApprove(approvals[i].balance);
+        }
+        (bool success, bytes memory result) = target.call{value: msg.value}(
+            data
+        );
+        if (!success) {
+            revert CallFailed(target, data);
+        }
+        for (i = 0; i < withdrawals.length; i++) {
+            _checkMetadata(withdrawals[i]);
+            _transfer(withdrawals[i].balance);
+        }
+        for (i = 0; i < postBalances.length; i++) {
+            _checkMetadata(postBalances[i]);
+            _balanceCheck(postBalances[i].balance);
+        }
+
+        return result;
+    }
+
+    /// @inheritdoc IBalanceProxy
+    function proxyCallMetadataCalldata(
+        BalanceMetadata[] calldata postBalances,
+        BalanceMetadata[] calldata preBalances,
+        BalanceMetadata[] calldata approvals,
+        address target,
+        bytes calldata data,
+        BalanceMetadata[] calldata withdrawals
+    ) external payable returns (bytes memory) {
+        uint256 i;
+        for (i = 0; i < preBalances.length; i++) {
+            _checkMetadataCalldata(preBalances[i]);
+            _balanceCheckCalldata(preBalances[i].balance);
+        }
+        for (i = 0; i < approvals.length; i++) {
+            _checkMetadataCalldata(approvals[i]);
+            _transferAndApproveCalldata(approvals[i].balance);
+        }
+        (bool success, bytes memory result) = target.call{value: msg.value}(
+            data
+        );
+        if (!success) {
+            revert CallFailed(target, data);
+        }
+        for (i = 0; i < withdrawals.length; i++) {
+            _checkMetadataCalldata(withdrawals[i]);
+            _transferCalldata(withdrawals[i].balance);
+        }
+        for (i = 0; i < postBalances.length; i++) {
+            _checkMetadataCalldata(postBalances[i]);
+            _balanceCheckCalldata(postBalances[i].balance);
         }
 
         return result;
@@ -151,6 +224,64 @@ contract BalanceProxy is IBalanceProxy {
             payable(balance.target).transfer(balance.balance);
         } else {
             IERC20(balance.token).transfer(balance.target, balance.balance);
+        }
+    }
+
+    /// @dev Internal function to check if metadata is valid
+    /// @param balance Balance to check
+    function _checkMetadata(BalanceMetadata memory balance) internal view {
+        string memory symbol;
+        uint8 decimals;
+        if (balance.balance.token == address(0)) {
+            symbol = "ETH";
+            decimals = 18;
+        } else {
+            symbol = IERC20Metadata(balance.balance.token).symbol();
+            decimals = IERC20Metadata(balance.balance.token).decimals();
+        }
+
+        if (
+            bytes32(abi.encodePacked(symbol)) !=
+            bytes32(abi.encodePacked(balance.symbol)) ||
+            decimals != balance.decimals
+        ) {
+            revert InvalidMetadata(
+                balance.balance.token,
+                balance.symbol,
+                balance.decimals,
+                symbol,
+                decimals
+            );
+        }
+    }
+
+    /// @dev Calldata version of internal function to check if metadata is valid
+    /// @param balance Balance to check
+    function _checkMetadataCalldata(
+        BalanceMetadata calldata balance
+    ) internal view {
+        string memory symbol;
+        uint8 decimals;
+        if (balance.balance.token == address(0)) {
+            symbol = "ETH";
+            decimals = 18;
+        } else {
+            symbol = IERC20Metadata(balance.balance.token).symbol();
+            decimals = IERC20Metadata(balance.balance.token).decimals();
+        }
+
+        if (
+            keccak256(abi.encodePacked(symbol)) !=
+            keccak256(abi.encodePacked(balance.symbol)) ||
+            decimals != balance.decimals
+        ) {
+            revert InvalidMetadata(
+                balance.balance.token,
+                balance.symbol,
+                balance.decimals,
+                symbol,
+                decimals
+            );
         }
     }
 

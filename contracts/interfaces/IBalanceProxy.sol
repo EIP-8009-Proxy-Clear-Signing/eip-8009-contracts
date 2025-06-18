@@ -6,10 +6,25 @@ pragma solidity ^0.8.27;
 /// @dev This interface is used to proxy calls to a target contract with specified balances and approvals
 interface IBalanceProxy {
     /// @notice Struct to represent balance or value of specific token by target address
+    /// @param target Target address
+    /// @param token Token address
+    /// @param balance Balance
     struct Balance {
         address target;
         address token;
         uint256 balance;
+    }
+
+    /// @notice Struct to represent metadata of a balance
+    /// @param target Target address
+    /// @param token Token address
+    /// @param balance Balance struct
+    /// @param symbol Symbol of the token
+    /// @param decimals Decimals of the token
+    struct BalanceMetadata {
+        Balance balance;
+        string symbol;
+        uint8 decimals;
     }
 
     /// @notice Error thrown when a balance is insufficient
@@ -27,6 +42,20 @@ interface IBalanceProxy {
     /// @param target Target address
     /// @param data Data passed to the target contract
     error CallFailed(address target, bytes data);
+
+    /// @notice Error thrown when metadata is invalid
+    /// @param token Token address
+    /// @param expectedSymbol Expected symbol of the token
+    /// @param expectedDecimals Expected decimals of the token
+    /// @param actualSymbol Actual symbol of the token
+    /// @param actualDecimals Actual decimals of the token
+    error InvalidMetadata(
+        address token,
+        string expectedSymbol,
+        uint8 expectedDecimals,
+        string actualSymbol,
+        uint8 actualDecimals
+    );
 
     /// @notice Proxy call to a target contract with specified balances and approvals
     /// @param postBalances Balances to check after the call
@@ -60,5 +89,39 @@ interface IBalanceProxy {
         address target,
         bytes calldata data,
         Balance[] calldata withdrawals
+    ) external payable returns (bytes memory);
+
+    /// @notice Proxy call to a target contract with specified balances and approvals
+    /// @param postBalances Balances to check after the call
+    /// @param preBalances Balances to check before the call
+    /// @param approvals Approvals to make before the call
+    /// @param target Target contract to call
+    /// @param data Data to pass to the target contract
+    /// @param withdrawals Withdrawals to make after the call
+    /// @return Result of the call
+    function proxyCallMetadata(
+        BalanceMetadata[] memory postBalances,
+        BalanceMetadata[] memory preBalances,
+        BalanceMetadata[] memory approvals,
+        address target,
+        bytes memory data,
+        BalanceMetadata[] memory withdrawals
+    ) external payable returns (bytes memory);
+
+    /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
+    /// @param postBalances Balances to check after the call
+    /// @param preBalances Balances to check before the call
+    /// @param approvals Approvals to make before the call
+    /// @param target Target contract to call
+    /// @param data Data to pass to the target contract
+    /// @param withdrawals Withdrawals to make after the call
+    /// @return result Result of the call
+    function proxyCallMetadataCalldata(
+        BalanceMetadata[] calldata postBalances,
+        BalanceMetadata[] calldata preBalances,
+        BalanceMetadata[] calldata approvals,
+        address target,
+        bytes calldata data,
+        BalanceMetadata[] calldata withdrawals
     ) external payable returns (bytes memory);
 }
