@@ -2,6 +2,7 @@
 pragma solidity ^0.8.27;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SignedMath} from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IBalanceProxy} from "./interfaces/IBalanceProxy.sol";
 
@@ -11,16 +12,17 @@ import {IBalanceProxy} from "./interfaces/IBalanceProxy.sol";
 contract BalanceProxy is IBalanceProxy {
     /// @inheritdoc IBalanceProxy
     function proxyCall(
-        Balance[] memory postBalances,
-        Balance[] memory preBalances,
+        Balance[] memory diffs,
         Balance[] memory approvals,
         address target,
         bytes memory data,
         Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
         uint256 i;
-        for (i = 0; i < preBalances.length; i++) {
-            _balanceCheck(preBalances[i]);
+        for (i = 0; i < diffs.length; i++) {
+            if (diffs[i].diff < 0) {
+                _balanceCheck(diffs[i]);
+            }
         }
         for (i = 0; i < approvals.length; i++) {
             _transferAndApprove(approvals[i]);
@@ -34,8 +36,10 @@ contract BalanceProxy is IBalanceProxy {
         for (i = 0; i < withdrawals.length; i++) {
             _transfer(withdrawals[i]);
         }
-        for (i = 0; i < postBalances.length; i++) {
-            _balanceCheck(postBalances[i]);
+        for (i = 0; i < diffs.length; i++) {
+            if (diffs[i].diff > 0) {
+                _balanceCheck(diffs[i]);
+            }
         }
 
         return result;
@@ -43,16 +47,17 @@ contract BalanceProxy is IBalanceProxy {
 
     /// @inheritdoc IBalanceProxy
     function proxyCallCalldata(
-        Balance[] calldata postBalances,
-        Balance[] calldata preBalances,
+        Balance[] calldata diffs,
         Balance[] calldata approvals,
         address target,
         bytes calldata data,
         Balance[] calldata withdrawals
     ) external payable returns (bytes memory) {
         uint256 i;
-        for (i = 0; i < preBalances.length; i++) {
-            _balanceCheckCalldata(preBalances[i]);
+        for (i = 0; i < diffs.length; i++) {
+            if (diffs[i].diff < 0) {
+                _balanceCheckCalldata(diffs[i]);
+            }
         }
         for (i = 0; i < approvals.length; i++) {
             _transferAndApproveCalldata(approvals[i]);
@@ -66,8 +71,10 @@ contract BalanceProxy is IBalanceProxy {
         for (i = 0; i < withdrawals.length; i++) {
             _transferCalldata(withdrawals[i]);
         }
-        for (i = 0; i < postBalances.length; i++) {
-            _balanceCheckCalldata(postBalances[i]);
+        for (i = 0; i < diffs.length; i++) {
+            if (diffs[i].diff > 0) {
+                _balanceCheckCalldata(diffs[i]);
+            }
         }
 
         return result;
@@ -75,17 +82,18 @@ contract BalanceProxy is IBalanceProxy {
 
     /// @inheritdoc IBalanceProxy
     function proxyCallMetadata(
-        BalanceMetadata[] memory postBalances,
-        BalanceMetadata[] memory preBalances,
+        BalanceMetadata[] memory diffs,
         BalanceMetadata[] memory approvals,
         address target,
         bytes memory data,
         BalanceMetadata[] memory withdrawals
     ) external payable returns (bytes memory) {
         uint256 i;
-        for (i = 0; i < preBalances.length; i++) {
-            _checkMetadata(preBalances[i]);
-            _balanceCheck(preBalances[i].balance);
+        for (i = 0; i < diffs.length; i++) {
+            if (diffs[i].balance.diff < 0) {
+                _checkMetadata(diffs[i]);
+                _balanceCheck(diffs[i].balance);
+            }
         }
         for (i = 0; i < approvals.length; i++) {
             _checkMetadata(approvals[i]);
@@ -101,9 +109,11 @@ contract BalanceProxy is IBalanceProxy {
             _checkMetadata(withdrawals[i]);
             _transfer(withdrawals[i].balance);
         }
-        for (i = 0; i < postBalances.length; i++) {
-            _checkMetadata(postBalances[i]);
-            _balanceCheck(postBalances[i].balance);
+        for (i = 0; i < diffs.length; i++) {
+            if (diffs[i].balance.diff > 0) {
+                _checkMetadata(diffs[i]);
+                _balanceCheck(diffs[i].balance);
+            }
         }
 
         return result;
@@ -111,17 +121,18 @@ contract BalanceProxy is IBalanceProxy {
 
     /// @inheritdoc IBalanceProxy
     function proxyCallMetadataCalldata(
-        BalanceMetadata[] calldata postBalances,
-        BalanceMetadata[] calldata preBalances,
+        BalanceMetadata[] calldata diffs,
         BalanceMetadata[] calldata approvals,
         address target,
         bytes calldata data,
         BalanceMetadata[] calldata withdrawals
     ) external payable returns (bytes memory) {
         uint256 i;
-        for (i = 0; i < preBalances.length; i++) {
-            _checkMetadataCalldata(preBalances[i]);
-            _balanceCheckCalldata(preBalances[i].balance);
+        for (i = 0; i < diffs.length; i++) {
+            if (diffs[i].balance.diff < 0) {
+                _checkMetadataCalldata(diffs[i]);
+                _balanceCheckCalldata(diffs[i].balance);
+            }
         }
         for (i = 0; i < approvals.length; i++) {
             _checkMetadataCalldata(approvals[i]);
@@ -137,9 +148,11 @@ contract BalanceProxy is IBalanceProxy {
             _checkMetadataCalldata(withdrawals[i]);
             _transferCalldata(withdrawals[i].balance);
         }
-        for (i = 0; i < postBalances.length; i++) {
-            _checkMetadataCalldata(postBalances[i]);
-            _balanceCheckCalldata(postBalances[i].balance);
+        for (i = 0; i < diffs.length; i++) {
+            if (diffs[i].balance.diff > 0) {
+                _checkMetadataCalldata(diffs[i]);
+                _balanceCheckCalldata(diffs[i].balance);
+            }
         }
 
         return result;
@@ -151,11 +164,11 @@ contract BalanceProxy is IBalanceProxy {
         uint256 actual = balance.token == address(0)
             ? balance.target.balance
             : IERC20(balance.token).balanceOf(balance.target);
-        if (actual < balance.balance) {
+        if (actual < SignedMath.abs(balance.diff)) {
             revert InsufficientBalance(
                 balance.token,
                 balance.target,
-                balance.balance,
+                balance.diff,
                 actual
             );
         }
@@ -167,11 +180,11 @@ contract BalanceProxy is IBalanceProxy {
         uint256 actual = balance.token == address(0)
             ? balance.target.balance
             : IERC20(balance.token).balanceOf(balance.target);
-        if (actual < balance.balance) {
+        if (actual < SignedMath.abs(balance.diff)) {
             revert InsufficientBalance(
                 balance.token,
                 balance.target,
-                balance.balance,
+                balance.diff,
                 actual
             );
         }
@@ -187,9 +200,12 @@ contract BalanceProxy is IBalanceProxy {
         IERC20(balance.token).transferFrom(
             msg.sender,
             address(this),
-            balance.balance
+            SignedMath.abs(balance.diff)
         );
-        IERC20(balance.token).approve(balance.target, balance.balance);
+        IERC20(balance.token).approve(
+            balance.target,
+            SignedMath.abs(balance.diff)
+        );
     }
 
     /// @dev Calldata version of internal function to transfer and approve a balance
@@ -202,18 +218,24 @@ contract BalanceProxy is IBalanceProxy {
         IERC20(balance.token).transferFrom(
             msg.sender,
             address(this),
-            balance.balance
+            SignedMath.abs(balance.diff)
         );
-        IERC20(balance.token).approve(balance.target, balance.balance);
+        IERC20(balance.token).approve(
+            balance.target,
+            SignedMath.abs(balance.diff)
+        );
     }
 
     /// @dev Internal function to transfer a balance
     /// @param balance Balance to transfer
     function _transfer(Balance memory balance) internal {
         if (balance.token == address(0)) {
-            payable(balance.target).transfer(balance.balance);
+            payable(balance.target).transfer(SignedMath.abs(balance.diff));
         } else {
-            IERC20(balance.token).transfer(balance.target, balance.balance);
+            IERC20(balance.token).transfer(
+                balance.target,
+                SignedMath.abs(balance.diff)
+            );
         }
     }
 
@@ -221,9 +243,12 @@ contract BalanceProxy is IBalanceProxy {
     /// @param balance Balance to transfer
     function _transferCalldata(Balance calldata balance) internal {
         if (balance.token == address(0)) {
-            payable(balance.target).transfer(balance.balance);
+            payable(balance.target).transfer(SignedMath.abs(balance.diff));
         } else {
-            IERC20(balance.token).transfer(balance.target, balance.balance);
+            IERC20(balance.token).transfer(
+                balance.target,
+                SignedMath.abs(balance.diff)
+            );
         }
     }
 

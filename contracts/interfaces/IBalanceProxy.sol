@@ -12,7 +12,7 @@ interface IBalanceProxy {
     struct Balance {
         address target;
         address token;
-        uint256 balance;
+        int256 diff;
     }
 
     /// @notice Struct to represent metadata of a balance
@@ -34,7 +34,7 @@ interface IBalanceProxy {
     error InsufficientBalance(
         address token,
         address target,
-        uint256 balance,
+        int256 balance,
         uint256 actual
     );
 
@@ -58,16 +58,14 @@ interface IBalanceProxy {
     );
 
     /// @notice Proxy call to a target contract with specified balances and approvals
-    /// @param postBalances Balances to check after the call
-    /// @param preBalances Balances to check before the call
+    /// @param diffs Balances to check after the call
     /// @param approvals Approvals to make before the call
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
     /// @return Result of the call
     function proxyCall(
-        Balance[] memory postBalances,
-        Balance[] memory preBalances,
+        Balance[] memory diffs,
         Balance[] memory approvals,
         address target,
         bytes memory data,
@@ -75,16 +73,14 @@ interface IBalanceProxy {
     ) external payable returns (bytes memory);
 
     /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
-    /// @param postBalances Balances to check after the call
-    /// @param preBalances Balances to check before the call
+    /// @param diffs Balances to check after the call
     /// @param approvals Approvals to make before the call
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
     /// @return result Result of the call
     function proxyCallCalldata(
-        Balance[] calldata postBalances,
-        Balance[] calldata preBalances,
+        Balance[] calldata diffs,
         Balance[] calldata approvals,
         address target,
         bytes calldata data,
@@ -92,16 +88,14 @@ interface IBalanceProxy {
     ) external payable returns (bytes memory);
 
     /// @notice Proxy call to a target contract with specified balances and approvals
-    /// @param postBalances Balances to check after the call
-    /// @param preBalances Balances to check before the call
+    /// @param diffs Balances to check after the call
     /// @param approvals Approvals to make before the call
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
     /// @return Result of the call
     function proxyCallMetadata(
-        BalanceMetadata[] memory postBalances,
-        BalanceMetadata[] memory preBalances,
+        BalanceMetadata[] memory diffs,
         BalanceMetadata[] memory approvals,
         address target,
         bytes memory data,
@@ -109,16 +103,14 @@ interface IBalanceProxy {
     ) external payable returns (bytes memory);
 
     /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
-    /// @param postBalances Balances to check after the call
-    /// @param preBalances Balances to check before the call
+    /// @param diffs Balances to check after the call
     /// @param approvals Approvals to make before the call
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
     /// @return result Result of the call
     function proxyCallMetadataCalldata(
-        BalanceMetadata[] calldata postBalances,
-        BalanceMetadata[] calldata preBalances,
+        BalanceMetadata[] calldata diffs,
         BalanceMetadata[] calldata approvals,
         address target,
         bytes calldata data,
