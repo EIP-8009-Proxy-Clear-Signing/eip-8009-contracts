@@ -152,7 +152,6 @@ describe('BalanceProxy', function () {
 
       await balanceProxy.write.proxyCall([
         [],
-        [],
         [
           {
             balance: amount,
@@ -199,18 +198,6 @@ describe('BalanceProxy', function () {
           [
             {
               token: zeroAddress,
-              balance: balanceBeforeOwner - gasCost - amount,
-              target: owner.account.address,
-            },
-            {
-              token: zeroAddress,
-              balance: balanceBeforeOther,
-              target: other.account.address,
-            },
-          ],
-          [
-            {
-              token: zeroAddress,
               balance: amount,
               target: other.account.address,
             },
@@ -221,38 +208,6 @@ describe('BalanceProxy', function () {
         ],
         { value: amount },
       );
-    });
-
-    it('should revert if pre-balances are not met', async function () {
-      const { balanceProxy, erc20, owner, other, target } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      await expect(
-        balanceProxy.write.proxyCall([
-          [],
-          [
-            {
-              token: erc20.address,
-              target: owner.account.address,
-              balance: amount + 1n,
-            },
-          ],
-          [
-            {
-              balance: amount,
-              token: erc20.address,
-              target: target.address,
-            },
-          ],
-          erc20.address,
-          encodeTransfer(other.account.address, amount),
-          [],
-        ]),
-      ).to.be.rejectedWith('InsufficientBalance');
     });
 
     it('should revert if target call fails', async function () {
@@ -268,13 +223,6 @@ describe('BalanceProxy', function () {
       await expect(
         balanceProxy.write.proxyCall([
           [],
-          [
-            {
-              token: erc20.address,
-              target: owner.account.address,
-              balance: amount,
-            },
-          ],
           [
             {
               balance: amount,
@@ -309,18 +257,6 @@ describe('BalanceProxy', function () {
           {
             balance: 0n,
             target: owner.account.address,
-            token: erc20.address,
-          },
-        ],
-        [
-          {
-            balance: amount,
-            target: owner.account.address,
-            token: erc20.address,
-          },
-          {
-            balance: 0n,
-            target: other.account.address,
             token: erc20.address,
           },
         ],
@@ -374,18 +310,6 @@ describe('BalanceProxy', function () {
         [
           {
             balance: amount,
-            target: owner.account.address,
-            token: erc20.address,
-          },
-          {
-            balance: 0n,
-            target: other.account.address,
-            token: zeroAddress,
-          },
-        ],
-        [
-          {
-            balance: amount,
             target: target.address,
             token: erc20.address,
           },
@@ -415,7 +339,6 @@ describe('BalanceProxy', function () {
       const data = encodeTransfer(other.account.address, amount);
 
       await balanceProxy.write.proxyCallMetadata([
-        [],
         [],
         [
           {
@@ -476,26 +399,6 @@ describe('BalanceProxy', function () {
             {
               balance: {
                 token: zeroAddress,
-                balance: balanceBeforeOwner - gasCost - amount,
-                target: owner.account.address,
-              },
-              symbol: 'ETH',
-              decimals: 18,
-            },
-            {
-              balance: {
-                token: zeroAddress,
-                balance: balanceBeforeOther,
-                target: other.account.address,
-              },
-              symbol: 'ETH',
-              decimals: 18,
-            },
-          ],
-          [
-            {
-              balance: {
-                token: zeroAddress,
                 balance: amount,
                 target: other.account.address,
               },
@@ -511,46 +414,6 @@ describe('BalanceProxy', function () {
       );
     });
 
-    it('should revert if pre-balances are not met', async function () {
-      const { balanceProxy, erc20, owner, other, target } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      await expect(
-        balanceProxy.write.proxyCallMetadata([
-          [],
-          [
-            {
-              balance: {
-                token: erc20.address,
-                target: owner.account.address,
-                balance: amount + 1n,
-              },
-              symbol: 'MTK',
-              decimals: 18,
-            },
-          ],
-          [
-            {
-              balance: {
-                token: erc20.address,
-                target: target.address,
-                balance: amount,
-              },
-              symbol: 'MTK',
-              decimals: 18,
-            },
-          ],
-          erc20.address,
-          encodeTransfer(other.account.address, amount),
-          [],
-        ]),
-      ).to.be.rejectedWith('InsufficientBalance');
-    });
-
     it('should revert if target call fails', async function () {
       const { balanceProxy, erc20, owner, target, other } =
         await loadFixture(deployFixture);
@@ -564,17 +427,6 @@ describe('BalanceProxy', function () {
       await expect(
         balanceProxy.write.proxyCallMetadata([
           [],
-          [
-            {
-              balance: {
-                token: erc20.address,
-                target: owner.account.address,
-                balance: amount,
-              },
-              symbol: 'MTK',
-              decimals: 18,
-            },
-          ],
           [
             {
               balance: {
@@ -618,26 +470,6 @@ describe('BalanceProxy', function () {
             balance: {
               balance: 0n,
               target: owner.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-        ],
-        [
-          {
-            balance: {
-              balance: amount,
-              target: owner.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-          {
-            balance: {
-              balance: 0n,
-              target: other.account.address,
               token: erc20.address,
             },
             symbol: 'MTK',
@@ -711,26 +543,6 @@ describe('BalanceProxy', function () {
           {
             balance: {
               balance: amount,
-              target: owner.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-          {
-            balance: {
-              balance: 0n,
-              target: other.account.address,
-              token: zeroAddress,
-            },
-            symbol: 'ETH',
-            decimals: 18,
-          },
-        ],
-        [
-          {
-            balance: {
-              balance: amount,
               target: target.address,
               token: erc20.address,
             },
@@ -778,7 +590,6 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
-          [],
           erc20.address,
           data,
           [],
@@ -807,10 +618,9 @@ describe('BalanceProxy', function () {
                 token: erc20.address,
               },
               symbol: 'MTK',
-              decimals: 17,
+              decimals: 6,
             },
           ],
-          [],
           erc20.address,
           data,
           [],
@@ -831,7 +641,6 @@ describe('BalanceProxy', function () {
       const data = encodeTransfer(other.account.address, amount);
 
       await balanceProxy.write.proxyCallCalldata([
-        [],
         [],
         [
           {
@@ -879,18 +688,6 @@ describe('BalanceProxy', function () {
           [
             {
               token: zeroAddress,
-              balance: balanceBeforeOwner - gasCost - amount,
-              target: owner.account.address,
-            },
-            {
-              token: zeroAddress,
-              balance: balanceBeforeOther,
-              target: other.account.address,
-            },
-          ],
-          [
-            {
-              token: zeroAddress,
               balance: amount,
               target: other.account.address,
             },
@@ -901,38 +698,6 @@ describe('BalanceProxy', function () {
         ],
         { value: amount },
       );
-    });
-
-    it('should revert if pre-balances are not met', async function () {
-      const { balanceProxy, erc20, owner, other, target } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      await expect(
-        balanceProxy.write.proxyCallCalldata([
-          [],
-          [
-            {
-              token: erc20.address,
-              target: owner.account.address,
-              balance: amount + 1n,
-            },
-          ],
-          [
-            {
-              balance: amount,
-              token: erc20.address,
-              target: target.address,
-            },
-          ],
-          erc20.address,
-          encodeTransfer(other.account.address, amount),
-          [],
-        ]),
-      ).to.be.rejectedWith('InsufficientBalance');
     });
 
     it('should revert if target call fails', async function () {
@@ -948,13 +713,6 @@ describe('BalanceProxy', function () {
       await expect(
         balanceProxy.write.proxyCallCalldata([
           [],
-          [
-            {
-              token: erc20.address,
-              target: owner.account.address,
-              balance: amount,
-            },
-          ],
           [
             {
               balance: amount,
@@ -989,18 +747,6 @@ describe('BalanceProxy', function () {
           {
             balance: 0n,
             target: owner.account.address,
-            token: erc20.address,
-          },
-        ],
-        [
-          {
-            balance: amount,
-            target: owner.account.address,
-            token: erc20.address,
-          },
-          {
-            balance: 0n,
-            target: other.account.address,
             token: erc20.address,
           },
         ],
@@ -1054,18 +800,6 @@ describe('BalanceProxy', function () {
         [
           {
             balance: amount,
-            target: owner.account.address,
-            token: erc20.address,
-          },
-          {
-            balance: 0n,
-            target: other.account.address,
-            token: zeroAddress,
-          },
-        ],
-        [
-          {
-            balance: amount,
             target: target.address,
             token: erc20.address,
           },
@@ -1095,7 +829,6 @@ describe('BalanceProxy', function () {
       const data = encodeTransfer(other.account.address, amount);
 
       await balanceProxy.write.proxyCallMetadataCalldata([
-        [],
         [],
         [
           {
@@ -1156,26 +889,6 @@ describe('BalanceProxy', function () {
             {
               balance: {
                 token: zeroAddress,
-                balance: balanceBeforeOwner - gasCost - amount,
-                target: owner.account.address,
-              },
-              symbol: 'ETH',
-              decimals: 18,
-            },
-            {
-              balance: {
-                token: zeroAddress,
-                balance: balanceBeforeOther,
-                target: other.account.address,
-              },
-              symbol: 'ETH',
-              decimals: 18,
-            },
-          ],
-          [
-            {
-              balance: {
-                token: zeroAddress,
                 balance: amount,
                 target: other.account.address,
               },
@@ -1191,46 +904,6 @@ describe('BalanceProxy', function () {
       );
     });
 
-    it('should revert if pre-balances are not met', async function () {
-      const { balanceProxy, erc20, owner, other, target } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      await expect(
-        balanceProxy.write.proxyCallMetadataCalldata([
-          [],
-          [
-            {
-              balance: {
-                token: erc20.address,
-                target: owner.account.address,
-                balance: amount + 1n,
-              },
-              symbol: 'MTK',
-              decimals: 18,
-            },
-          ],
-          [
-            {
-              balance: {
-                token: erc20.address,
-                target: target.address,
-                balance: amount,
-              },
-              symbol: 'MTK',
-              decimals: 18,
-            },
-          ],
-          erc20.address,
-          encodeTransfer(other.account.address, amount),
-          [],
-        ]),
-      ).to.be.rejectedWith('InsufficientBalance');
-    });
-
     it('should revert if target call fails', async function () {
       const { balanceProxy, erc20, owner, target, other } =
         await loadFixture(deployFixture);
@@ -1244,17 +917,6 @@ describe('BalanceProxy', function () {
       await expect(
         balanceProxy.write.proxyCallMetadataCalldata([
           [],
-          [
-            {
-              balance: {
-                token: erc20.address,
-                target: owner.account.address,
-                balance: amount,
-              },
-              symbol: 'MTK',
-              decimals: 18,
-            },
-          ],
           [
             {
               balance: {
@@ -1298,26 +960,6 @@ describe('BalanceProxy', function () {
             balance: {
               balance: 0n,
               target: owner.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-        ],
-        [
-          {
-            balance: {
-              balance: amount,
-              target: owner.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-          {
-            balance: {
-              balance: 0n,
-              target: other.account.address,
               token: erc20.address,
             },
             symbol: 'MTK',
@@ -1391,26 +1033,6 @@ describe('BalanceProxy', function () {
           {
             balance: {
               balance: amount,
-              target: owner.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-          {
-            balance: {
-              balance: 0n,
-              target: other.account.address,
-              token: zeroAddress,
-            },
-            symbol: 'ETH',
-            decimals: 18,
-          },
-        ],
-        [
-          {
-            balance: {
-              balance: amount,
               target: target.address,
               token: erc20.address,
             },
@@ -1458,7 +1080,6 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
-          [],
           erc20.address,
           data,
           [],
@@ -1487,10 +1108,9 @@ describe('BalanceProxy', function () {
                 token: erc20.address,
               },
               symbol: 'MTK',
-              decimals: 17,
+              decimals: 6,
             },
           ],
-          [],
           erc20.address,
           data,
           [],

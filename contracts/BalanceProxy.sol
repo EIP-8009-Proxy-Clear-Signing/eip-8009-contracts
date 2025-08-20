@@ -31,7 +31,7 @@ contract BalanceProxy is IBalanceProxy {
             data
         );
         if (!success) {
-            revert CallFailed(target, data);
+            revert CallFailed(target, data, result);
         }
         for (i = 0; i < withdrawals.length; i++) {
             _transfer(withdrawals[i]);
@@ -73,7 +73,7 @@ contract BalanceProxy is IBalanceProxy {
             data
         );
         if (!success) {
-            revert CallFailed(target, data);
+            revert CallFailed(target, data, result);
         }
         for (i = 0; i < withdrawals.length; i++) {
             _transferCalldata(withdrawals[i]);
@@ -119,7 +119,7 @@ contract BalanceProxy is IBalanceProxy {
             data
         );
         if (!success) {
-            revert CallFailed(target, data);
+            revert CallFailed(target, data, result);
         }
         for (i = 0; i < withdrawals.length; i++) {
             _checkMetadata(withdrawals[i]);
@@ -169,7 +169,7 @@ contract BalanceProxy is IBalanceProxy {
             data
         );
         if (!success) {
-            revert CallFailed(target, data);
+            revert CallFailed(target, data, result);
         }
         for (i = 0; i < withdrawals.length; i++) {
             _checkMetadataCalldata(withdrawals[i]);
@@ -200,16 +200,12 @@ contract BalanceProxy is IBalanceProxy {
     /// @inheritdoc IBalanceProxy
     function proxyCall(
         Balance[] memory postBalances,
-        Balance[] memory preBalances,
         Balance[] memory approvals,
         address target,
         bytes memory data,
         Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
         uint256 i;
-        for (i = 0; i < preBalances.length; i++) {
-            _balanceCheck(preBalances[i]);
-        }
         for (i = 0; i < approvals.length; i++) {
             _transferAndApprove(approvals[i]);
         }
@@ -217,7 +213,7 @@ contract BalanceProxy is IBalanceProxy {
             data
         );
         if (!success) {
-            revert CallFailed(target, data);
+            revert CallFailed(target, data, result);
         }
         for (i = 0; i < withdrawals.length; i++) {
             _transfer(withdrawals[i]);
@@ -232,16 +228,12 @@ contract BalanceProxy is IBalanceProxy {
     /// @inheritdoc IBalanceProxy
     function proxyCallCalldata(
         Balance[] calldata postBalances,
-        Balance[] calldata preBalances,
         Balance[] calldata approvals,
         address target,
         bytes calldata data,
         Balance[] calldata withdrawals
     ) external payable returns (bytes memory) {
         uint256 i;
-        for (i = 0; i < preBalances.length; i++) {
-            _balanceCheckCalldata(preBalances[i]);
-        }
         for (i = 0; i < approvals.length; i++) {
             _transferAndApproveCalldata(approvals[i]);
         }
@@ -249,7 +241,7 @@ contract BalanceProxy is IBalanceProxy {
             data
         );
         if (!success) {
-            revert CallFailed(target, data);
+            revert CallFailed(target, data, result);
         }
         for (i = 0; i < withdrawals.length; i++) {
             _transferCalldata(withdrawals[i]);
@@ -264,17 +256,12 @@ contract BalanceProxy is IBalanceProxy {
     /// @inheritdoc IBalanceProxy
     function proxyCallMetadata(
         BalanceMetadata[] memory postBalances,
-        BalanceMetadata[] memory preBalances,
         BalanceMetadata[] memory approvals,
         address target,
         bytes memory data,
         BalanceMetadata[] memory withdrawals
     ) external payable returns (bytes memory) {
         uint256 i;
-        for (i = 0; i < preBalances.length; i++) {
-            _checkMetadata(preBalances[i]);
-            _balanceCheck(preBalances[i].balance);
-        }
         for (i = 0; i < approvals.length; i++) {
             _checkMetadata(approvals[i]);
             _transferAndApprove(approvals[i].balance);
@@ -283,7 +270,7 @@ contract BalanceProxy is IBalanceProxy {
             data
         );
         if (!success) {
-            revert CallFailed(target, data);
+            revert CallFailed(target, data, result);
         }
         for (i = 0; i < withdrawals.length; i++) {
             _checkMetadata(withdrawals[i]);
@@ -300,17 +287,12 @@ contract BalanceProxy is IBalanceProxy {
     /// @inheritdoc IBalanceProxy
     function proxyCallMetadataCalldata(
         BalanceMetadata[] calldata postBalances,
-        BalanceMetadata[] calldata preBalances,
         BalanceMetadata[] calldata approvals,
         address target,
         bytes calldata data,
         BalanceMetadata[] calldata withdrawals
     ) external payable returns (bytes memory) {
         uint256 i;
-        for (i = 0; i < preBalances.length; i++) {
-            _checkMetadataCalldata(preBalances[i]);
-            _balanceCheckCalldata(preBalances[i].balance);
-        }
         for (i = 0; i < approvals.length; i++) {
             _checkMetadataCalldata(approvals[i]);
             _transferAndApproveCalldata(approvals[i].balance);
@@ -319,7 +301,7 @@ contract BalanceProxy is IBalanceProxy {
             data
         );
         if (!success) {
-            revert CallFailed(target, data);
+            revert CallFailed(target, data, result);
         }
         for (i = 0; i < withdrawals.length; i++) {
             _checkMetadataCalldata(withdrawals[i]);

@@ -53,7 +53,8 @@ interface IBalanceProxy {
     /// @notice Error thrown when a call fails
     /// @param target Target address
     /// @param data Data passed to the target contract
-    error CallFailed(address target, bytes data);
+    /// @param returnData Return data from the target contract
+    error CallFailed(address target, bytes data, bytes returnData);
 
     /// @notice Error thrown when metadata is invalid
     /// @param token Token address
@@ -71,7 +72,6 @@ interface IBalanceProxy {
 
     /// @notice Proxy call to a target contract with specified balances and approvals
     /// @param postBalances Balances to check after the call
-    /// @param preBalances Balances to check before the call
     /// @param approvals Approvals to make before the call
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
@@ -79,7 +79,6 @@ interface IBalanceProxy {
     /// @return Result of the call
     function proxyCall(
         Balance[] memory postBalances,
-        Balance[] memory preBalances,
         Balance[] memory approvals,
         address target,
         bytes memory data,
@@ -88,7 +87,6 @@ interface IBalanceProxy {
 
     /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
     /// @param postBalances Balances to check after the call
-    /// @param preBalances Balances to check before the call
     /// @param approvals Approvals to make before the call
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
@@ -96,7 +94,6 @@ interface IBalanceProxy {
     /// @return result Result of the call
     function proxyCallCalldata(
         Balance[] calldata postBalances,
-        Balance[] calldata preBalances,
         Balance[] calldata approvals,
         address target,
         bytes calldata data,
@@ -105,7 +102,6 @@ interface IBalanceProxy {
 
     /// @notice Proxy call to a target contract with specified balances and approvals
     /// @param postBalances Balances to check after the call
-    /// @param preBalances Balances to check before the call
     /// @param approvals Approvals to make before the call
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
@@ -113,7 +109,6 @@ interface IBalanceProxy {
     /// @return Result of the call
     function proxyCallMetadata(
         BalanceMetadata[] memory postBalances,
-        BalanceMetadata[] memory preBalances,
         BalanceMetadata[] memory approvals,
         address target,
         bytes memory data,
@@ -122,7 +117,6 @@ interface IBalanceProxy {
 
     /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
     /// @param postBalances Balances to check after the call
-    /// @param preBalances Balances to check before the call
     /// @param approvals Approvals to make before the call
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
@@ -130,7 +124,6 @@ interface IBalanceProxy {
     /// @return result Result of the call
     function proxyCallMetadataCalldata(
         BalanceMetadata[] calldata postBalances,
-        BalanceMetadata[] calldata preBalances,
         BalanceMetadata[] calldata approvals,
         address target,
         bytes calldata data,
