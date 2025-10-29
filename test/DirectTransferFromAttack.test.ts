@@ -69,16 +69,17 @@ describe('�️ SECURITY: Direct transferFrom Attack Protection', function () {
       args: [victim.account.address, attacker.account.address, VICTIM_AMOUNT],
     });
 
-    await balanceProxy.write.proxyCall(
-      [[], [], erc20.address, transferFromCalldata, []],
-      {
-        account: attacker.account,
-      },
-    );
+    await expect(
+      balanceProxy.write.proxyCall(
+        [[], [], erc20.address, transferFromCalldata, []],
+        {
+          account: attacker.account,
+        },
+      ),
+    ).to.be.rejectedWith('DangerousTokenCall');
 
-    console.log(`  ✅ Attack call completed`);
+    console.log(`  ✅ Attack was blocked with DangerousTokenCall error`);
 
-    // Check final state
     const victimBalanceAfter = await erc20.read.balanceOf([
       victim.account.address,
     ]);
@@ -90,7 +91,6 @@ describe('�️ SECURITY: Direct transferFrom Attack Protection', function () {
     console.log(`  Victim balance: ${victimBalanceAfter}`);
     console.log(`  Attacker balance: ${attackerBalanceAfter}`);
 
-    // ТЕСТ БЕЗПЕКИ: Атака повинна ПРОВАЛИТИСЬ!
     expect(victimBalanceAfter).to.equal(VICTIM_AMOUNT); // Victim should keep all tokens
     expect(attackerBalanceAfter).to.equal(0n); // Attacker should get nothing
 

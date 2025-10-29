@@ -56,7 +56,7 @@ describe('�️ SECURITY: Malicious Approve Target Protection', function () {
           balance: STOLEN_AMOUNT,
         },
       ],
-      victim.account.address, 
+      victim.account.address,
       '0x',
       [],
     ]);

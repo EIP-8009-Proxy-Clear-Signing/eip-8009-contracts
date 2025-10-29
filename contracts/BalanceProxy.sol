@@ -10,6 +10,82 @@ import {SignedMath} from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 /// @notice Proxy contract for calling contracts with specified balances and approvals
 /// @dev This contract is used to proxy calls to a target contract with specified balances and approvals
 contract BalanceProxy is IBalanceProxy {
+    bytes4 private constant TRANSFER_FROM_SELECTOR = IERC20.transferFrom.selector;
+    
+    /// @notice Error thrown when trying to call a dangerous token function on a token from approvals
+    error DangerousTokenCall(address target, bytes4 selector);
+    
+    /// @notice Error thrown when trying to approve tokens to msg.sender
+    error MaliciousApproveTarget(address token, address target);
+
+    /// @dev Check if calling dangerous token functions directly
+    /// @param target The target address being called
+    /// @param data The call data
+    function _checkDangerousCall(
+        address target,
+        bytes memory data,
+        Balance[] memory
+    ) internal pure {
+        if (data.length < 4) return;
+        
+        bytes4 selector = bytes4(data);
+        
+        if (selector == TRANSFER_FROM_SELECTOR) {
+            revert DangerousTokenCall(target, selector);
+        }
+    }
+
+    /// @dev Calldata version - check if calling dangerous token functions directly
+    /// @param target The target address being called
+    /// @param data The call data
+    function _checkDangerousCallCalldata(
+        address target,
+        bytes calldata data,
+        Balance[] calldata
+    ) internal pure {
+        if (data.length < 4) return;
+        
+        bytes4 selector = bytes4(data);
+        
+        if (selector == TRANSFER_FROM_SELECTOR) {
+            revert DangerousTokenCall(target, selector);
+        }
+    }
+
+    /// @dev BalanceMetadata version - check if calling dangerous token functions directly
+    /// @param target The target address being called
+    /// @param data The call data
+    function _checkDangerousCallMetadata(
+        address target,
+        bytes memory data,
+        BalanceMetadata[] memory
+    ) internal pure {
+        if (data.length < 4) return;
+        
+        bytes4 selector = bytes4(data);
+        
+        if (selector == TRANSFER_FROM_SELECTOR) {
+            revert DangerousTokenCall(target, selector);
+        }
+    }
+
+    /// @dev BalanceMetadata calldata version
+    /// @param target The target address being called
+    /// @param data The call data
+    function _checkDangerousCallMetadataCalldata(
+        address target,
+        bytes calldata data,
+        BalanceMetadata[] calldata
+    ) internal pure {
+        if (data.length < 4) return;
+        
+        bytes4 selector = bytes4(data);
+        
+        if (selector == TRANSFER_FROM_SELECTOR) {
+            revert DangerousTokenCall(target, selector);
+        }
+    }
+
     /// @inheritdoc IBalanceProxy
     function proxyCallDiffs(
         Balance[] memory diffs,
@@ -18,6 +94,7 @@ contract BalanceProxy is IBalanceProxy {
         bytes memory data,
         Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
+        _checkDangerousCall(target, data, approvals);
         uint256 i;
         uint256 len = diffs.length;
         uint256[] memory before = new uint256[](len);
@@ -60,6 +137,7 @@ contract BalanceProxy is IBalanceProxy {
         bytes calldata data,
         Balance[] calldata withdrawals
     ) external payable returns (bytes memory) {
+        _checkDangerousCallCalldata(target, data, approvals);
         uint256 i;
         uint256 len = diffs.length;
         uint256[] memory before = new uint256[](len);
@@ -102,6 +180,7 @@ contract BalanceProxy is IBalanceProxy {
         bytes memory data,
         BalanceMetadata[] memory withdrawals
     ) external payable returns (bytes memory) {
+        _checkDangerousCallMetadata(target, data, approvals);
         uint256 i;
         uint256 len = diffs.length;
         uint256[] memory before = new uint256[](len);
@@ -152,6 +231,7 @@ contract BalanceProxy is IBalanceProxy {
         bytes calldata data,
         BalanceMetadata[] calldata withdrawals
     ) external payable returns (bytes memory) {
+        _checkDangerousCallMetadataCalldata(target, data, approvals);
         uint256 i;
         uint256 len = diffs.length;
         uint256[] memory before = new uint256[](len);
@@ -205,6 +285,7 @@ contract BalanceProxy is IBalanceProxy {
         bytes memory data,
         Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
+        _checkDangerousCall(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
             _transferAndApprove(approvals[i]);
@@ -233,6 +314,7 @@ contract BalanceProxy is IBalanceProxy {
         bytes calldata data,
         Balance[] calldata withdrawals
     ) external payable returns (bytes memory) {
+        _checkDangerousCallCalldata(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
             _transferAndApproveCalldata(approvals[i]);
@@ -261,6 +343,7 @@ contract BalanceProxy is IBalanceProxy {
         bytes memory data,
         BalanceMetadata[] memory withdrawals
     ) external payable returns (bytes memory) {
+        _checkDangerousCallMetadata(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
             _checkMetadata(approvals[i]);
@@ -292,6 +375,7 @@ contract BalanceProxy is IBalanceProxy {
         bytes calldata data,
         BalanceMetadata[] calldata withdrawals
     ) external payable returns (bytes memory) {
+        _checkDangerousCallMetadataCalldata(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
             _checkMetadataCalldata(approvals[i]);
@@ -354,6 +438,11 @@ contract BalanceProxy is IBalanceProxy {
         if (balance.token == address(0)) {
             return;
         }
+        
+        if (balance.target == msg.sender) {
+            revert MaliciousApproveTarget(balance.token, balance.target);
+        }
+        
         IERC20(balance.token).transferFrom(
             msg.sender,
             address(this),
@@ -372,6 +461,11 @@ contract BalanceProxy is IBalanceProxy {
         if (balance.token == address(0)) {
             return;
         }
+        
+        if (balance.target == msg.sender) {
+            revert MaliciousApproveTarget(balance.token, balance.target);
+        }
+        
         IERC20(balance.token).transferFrom(
             msg.sender,
             address(this),
