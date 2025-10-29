@@ -47,60 +47,41 @@ describe('�️ SECURITY: Malicious Approve Target Protection', function () {
 
     console.log('\n🚨 ATTACK: Using malicious approve target');
 
-    await balanceProxy.write.proxyCall([
-      [],
-      [
-        {
-          target: attacker.account.address,
-          token: erc20.address,
-          balance: STOLEN_AMOUNT,
-        },
-      ],
-      victim.account.address,
-      '0x',
-      [],
-    ]);
+    await expect(
+      balanceProxy.write.proxyCall([
+        [],
+        [
+          {
+            target: attacker.account.address,
+            token: erc20.address,
+            balance: STOLEN_AMOUNT,
+          },
+        ],
+        victim.account.address,
+        '0x',
+        [],
+      ]),
+    ).to.be.rejected;
 
-    console.log('  ✅ Malicious proxyCall executed');
+    console.log('  ✅ Attack was blocked with MaliciousApproveTarget error');
 
-    const allowance = await erc20.read.allowance([
-      balanceProxy.address,
-      attacker.account.address,
-    ]);
-    console.log(`  📋 Attacker's allowance: ${allowance}`);
-    expect(allowance).to.equal(STOLEN_AMOUNT);
-
-    console.log('\n💰 STEAL: Using acquired approve');
-
-    const attackerErc20 = await viem.getContractAt('ERC20Mock', erc20.address, {
-      client: { wallet: attacker },
-    });
-
-    await attackerErc20.write.transferFrom([
-      balanceProxy.address,
-      attacker.account.address,
-      STOLEN_AMOUNT,
-    ]);
-
-    console.log('  ✅ Tokens stolen via transferFrom');
-
+    console.log('\n� RESULT:');
     const proxyBalanceAfter = await erc20.read.balanceOf([
       balanceProxy.address,
     ]);
     const attackerBalanceAfter = await erc20.read.balanceOf([
       attacker.account.address,
     ]);
+    const ownerBalanceAfter = await erc20.read.balanceOf([
+      owner.account.address,
+    ]);
 
-    console.log('\n💀 RESULT:');
-    console.log(
-      `  Owner balance: ${await erc20.read.balanceOf([owner.account.address])}`,
-    );
+    console.log(`  Owner balance: ${ownerBalanceAfter}`);
     console.log(`  Proxy balance: ${proxyBalanceAfter}`);
     console.log(`  Attacker balance: ${attackerBalanceAfter}`);
 
-    expect(await erc20.read.balanceOf([owner.account.address])).to.equal(
-      STOLEN_AMOUNT,
-    );
+    expect(ownerBalanceAfter).to.equal(STOLEN_AMOUNT);
+    expect(proxyBalanceAfter).to.equal(STOLEN_AMOUNT);
     expect(attackerBalanceAfter).to.equal(0n);
 
     console.log('\n🛡️ ATTACK BLOCKED - CONTRACT IS SECURE!');

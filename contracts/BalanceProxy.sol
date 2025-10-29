@@ -102,7 +102,7 @@ contract BalanceProxy is IBalanceProxy {
             before[i] = _currentBalance(diffs[i].token, diffs[i].target);
         }
         for (i = 0; i < approvals.length; i++) {
-            _transferAndApprove(approvals[i]);
+            _transferAndApprove(approvals[i], target);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -145,7 +145,7 @@ contract BalanceProxy is IBalanceProxy {
             before[i] = _currentBalance(diffs[i].token, diffs[i].target);
         }
         for (i = 0; i < approvals.length; i++) {
-            _transferAndApproveCalldata(approvals[i]);
+            _transferAndApproveCalldata(approvals[i], target);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -192,7 +192,7 @@ contract BalanceProxy is IBalanceProxy {
         }
         for (i = 0; i < approvals.length; i++) {
             _checkMetadata(approvals[i]);
-            _transferAndApprove(approvals[i].balance);
+            _transferAndApprove(approvals[i].balance, target);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -243,7 +243,7 @@ contract BalanceProxy is IBalanceProxy {
         }
         for (i = 0; i < approvals.length; i++) {
             _checkMetadataCalldata(approvals[i]);
-            _transferAndApproveCalldata(approvals[i].balance);
+            _transferAndApproveCalldata(approvals[i].balance, target);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -288,7 +288,7 @@ contract BalanceProxy is IBalanceProxy {
         _checkDangerousCall(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
-            _transferAndApprove(approvals[i]);
+            _transferAndApprove(approvals[i], target);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -317,7 +317,7 @@ contract BalanceProxy is IBalanceProxy {
         _checkDangerousCallCalldata(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
-            _transferAndApproveCalldata(approvals[i]);
+            _transferAndApproveCalldata(approvals[i], target);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -347,7 +347,7 @@ contract BalanceProxy is IBalanceProxy {
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
             _checkMetadata(approvals[i]);
-            _transferAndApprove(approvals[i].balance);
+            _transferAndApprove(approvals[i].balance, target);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -379,7 +379,7 @@ contract BalanceProxy is IBalanceProxy {
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
             _checkMetadataCalldata(approvals[i]);
-            _transferAndApproveCalldata(approvals[i].balance);
+            _transferAndApproveCalldata(approvals[i].balance, target);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -433,13 +433,14 @@ contract BalanceProxy is IBalanceProxy {
 
     /// @dev Internal function to transfer and approve a balance
     /// @param balance Balance to transfer and approve
+    /// @param callTarget The target address for the proxy call
     /// @dev If the token is ETH, this function does nothing
-    function _transferAndApprove(Balance memory balance) internal {
+    function _transferAndApprove(Balance memory balance, address callTarget) internal {
         if (balance.token == address(0)) {
             return;
         }
         
-        if (balance.target == msg.sender) {
+        if (balance.target != callTarget) {
             revert MaliciousApproveTarget(balance.token, balance.target);
         }
         
@@ -456,13 +457,14 @@ contract BalanceProxy is IBalanceProxy {
 
     /// @dev Calldata version of internal function to transfer and approve a balance
     /// @param balance Balance to transfer and approve
+    /// @param callTarget The target address for the proxy call
     /// @dev If the token is ETH, this function does nothing
-    function _transferAndApproveCalldata(Balance calldata balance) internal {
+    function _transferAndApproveCalldata(Balance calldata balance, address callTarget) internal {
         if (balance.token == address(0)) {
             return;
         }
         
-        if (balance.target == msg.sender) {
+        if (balance.target != callTarget) {
             revert MaliciousApproveTarget(balance.token, balance.target);
         }
         

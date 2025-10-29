@@ -156,7 +156,7 @@ describe('BalanceProxy', function () {
           {
             balance: amount,
             token: erc20.address,
-            target: other.account.address,
+            target: erc20.address,
           },
         ],
         erc20.address,
@@ -344,8 +344,8 @@ describe('BalanceProxy', function () {
           {
             balance: {
               balance: amount,
+              target: erc20.address,
               token: erc20.address,
-              target: other.account.address,
             },
             symbol: 'MTK',
             decimals: 18,
@@ -646,7 +646,7 @@ describe('BalanceProxy', function () {
           {
             balance: amount,
             token: erc20.address,
-            target: other.account.address,
+            target: erc20.address,
           },
         ],
         erc20.address,
@@ -834,8 +834,8 @@ describe('BalanceProxy', function () {
           {
             balance: {
               balance: amount,
+              target: erc20.address,
               token: erc20.address,
-              target: other.account.address,
             },
             symbol: 'MTK',
             decimals: 18,
