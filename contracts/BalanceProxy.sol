@@ -10,7 +10,8 @@ import {SignedMath} from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 /// @notice Proxy contract for calling contracts with specified balances and approvals
 /// @dev This contract is used to proxy calls to a target contract with specified balances and approvals
 contract BalanceProxy is IBalanceProxy {
-    bytes4 private constant _TRANSFER_FROM_SELECTOR = IERC20.transferFrom.selector;
+    bytes4 private constant _TRANSFER_FROM_SELECTOR =
+        IERC20.transferFrom.selector;
 
     /// @dev Check if calling dangerous token functions directly
     /// @param target The target address being called
@@ -21,9 +22,9 @@ contract BalanceProxy is IBalanceProxy {
         Balance[] memory
     ) internal pure {
         if (data.length < 4) return;
-        
+
         bytes4 selector = bytes4(data);
-        
+
         if (selector == _TRANSFER_FROM_SELECTOR) {
             revert DangerousTokenCall(target, selector);
         }
@@ -38,9 +39,9 @@ contract BalanceProxy is IBalanceProxy {
         Balance[] calldata
     ) internal pure {
         if (data.length < 4) return;
-        
+
         bytes4 selector = bytes4(data);
-        
+
         if (selector == _TRANSFER_FROM_SELECTOR) {
             revert DangerousTokenCall(target, selector);
         }
@@ -55,9 +56,9 @@ contract BalanceProxy is IBalanceProxy {
         BalanceMetadata[] memory
     ) internal pure {
         if (data.length < 4) return;
-        
+
         bytes4 selector = bytes4(data);
-        
+
         if (selector == _TRANSFER_FROM_SELECTOR) {
             revert DangerousTokenCall(target, selector);
         }
@@ -72,9 +73,9 @@ contract BalanceProxy is IBalanceProxy {
         BalanceMetadata[] calldata
     ) internal pure {
         if (data.length < 4) return;
-        
+
         bytes4 selector = bytes4(data);
-        
+
         if (selector == _TRANSFER_FROM_SELECTOR) {
             revert DangerousTokenCall(target, selector);
         }
@@ -429,15 +430,18 @@ contract BalanceProxy is IBalanceProxy {
     /// @param balance Balance to transfer and approve
     /// @param callTarget The target address for the proxy call
     /// @dev If the token is ETH, this function does nothing
-    function _transferAndApprove(Balance memory balance, address callTarget) internal {
+    function _transferAndApprove(
+        Balance memory balance,
+        address callTarget
+    ) internal {
         if (balance.token == address(0)) {
             return;
         }
-        
+
         if (balance.target != callTarget) {
             revert MaliciousApproveTarget(balance.token, balance.target);
         }
-        
+
         IERC20(balance.token).transferFrom(
             msg.sender,
             address(this),
@@ -453,15 +457,18 @@ contract BalanceProxy is IBalanceProxy {
     /// @param balance Balance to transfer and approve
     /// @param callTarget The target address for the proxy call
     /// @dev If the token is ETH, this function does nothing
-    function _transferAndApproveCalldata(Balance calldata balance, address callTarget) internal {
+    function _transferAndApproveCalldata(
+        Balance calldata balance,
+        address callTarget
+    ) internal {
         if (balance.token == address(0)) {
             return;
         }
-        
+
         if (balance.target != callTarget) {
             revert MaliciousApproveTarget(balance.token, balance.target);
         }
-        
+
         IERC20(balance.token).transferFrom(
             msg.sender,
             address(this),
