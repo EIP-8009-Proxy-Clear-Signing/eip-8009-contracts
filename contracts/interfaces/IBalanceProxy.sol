@@ -70,6 +70,16 @@ interface IBalanceProxy {
         uint8 actualDecimals
     );
 
+    /// @notice Error thrown when trying to call a dangerous token function on a token from approvals
+    /// @param target Target address
+    /// @param selector Function selector being called
+    error DangerousTokenCall(address target, bytes4 selector);
+
+    /// @notice Error thrown when trying to approve tokens to an address other than callTarget
+    /// @param token Token address
+    /// @param target Malicious target address
+    error MaliciousApproveTarget(address token, address target);
+
     /// @notice Proxy call to a target contract with specified balances and approvals
     /// @param postBalances Balances to check after the call
     /// @param approvals Approvals to make before the call

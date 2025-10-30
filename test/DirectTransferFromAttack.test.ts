@@ -20,8 +20,8 @@ describe('�️ SECURITY: Direct transferFrom Attack Protection', function () {
     return { owner, attacker, victim, balanceProxy, erc20 };
   }
 
-  it('�️ Should reject direct transferFrom and protect user tokens', async function () {
-    const { owner, attacker, victim, balanceProxy, erc20 } =
+  it('🛡️ Should reject direct transferFrom and protect user tokens', async function () {
+    const { attacker, victim, balanceProxy, erc20 } =
       await loadFixture(deployFixture);
 
     const VICTIM_AMOUNT = parseEther('1000');

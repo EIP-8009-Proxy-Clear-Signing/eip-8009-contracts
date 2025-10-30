@@ -10,13 +10,7 @@ import {SignedMath} from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 /// @notice Proxy contract for calling contracts with specified balances and approvals
 /// @dev This contract is used to proxy calls to a target contract with specified balances and approvals
 contract BalanceProxy is IBalanceProxy {
-    bytes4 private constant TRANSFER_FROM_SELECTOR = IERC20.transferFrom.selector;
-    
-    /// @notice Error thrown when trying to call a dangerous token function on a token from approvals
-    error DangerousTokenCall(address target, bytes4 selector);
-    
-    /// @notice Error thrown when trying to approve tokens to msg.sender
-    error MaliciousApproveTarget(address token, address target);
+    bytes4 private constant _TRANSFER_FROM_SELECTOR = IERC20.transferFrom.selector;
 
     /// @dev Check if calling dangerous token functions directly
     /// @param target The target address being called
@@ -30,7 +24,7 @@ contract BalanceProxy is IBalanceProxy {
         
         bytes4 selector = bytes4(data);
         
-        if (selector == TRANSFER_FROM_SELECTOR) {
+        if (selector == _TRANSFER_FROM_SELECTOR) {
             revert DangerousTokenCall(target, selector);
         }
     }
@@ -47,7 +41,7 @@ contract BalanceProxy is IBalanceProxy {
         
         bytes4 selector = bytes4(data);
         
-        if (selector == TRANSFER_FROM_SELECTOR) {
+        if (selector == _TRANSFER_FROM_SELECTOR) {
             revert DangerousTokenCall(target, selector);
         }
     }
@@ -64,7 +58,7 @@ contract BalanceProxy is IBalanceProxy {
         
         bytes4 selector = bytes4(data);
         
-        if (selector == TRANSFER_FROM_SELECTOR) {
+        if (selector == _TRANSFER_FROM_SELECTOR) {
             revert DangerousTokenCall(target, selector);
         }
     }
@@ -81,7 +75,7 @@ contract BalanceProxy is IBalanceProxy {
         
         bytes4 selector = bytes4(data);
         
-        if (selector == TRANSFER_FROM_SELECTOR) {
+        if (selector == _TRANSFER_FROM_SELECTOR) {
             revert DangerousTokenCall(target, selector);
         }
     }
