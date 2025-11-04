@@ -85,10 +85,14 @@ contract BalanceProxy is IBalanceProxy {
     function proxyCallDiffs(
         Balance[] memory diffs,
         Balance[] memory approvals,
+        bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
+        if (useTransferFlags.length != approvals.length) {
+            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+        }
         _checkDangerousCall(target, data, approvals);
         uint256 i;
         uint256 len = diffs.length;
@@ -97,7 +101,7 @@ contract BalanceProxy is IBalanceProxy {
             before[i] = _currentBalance(diffs[i].token, diffs[i].target);
         }
         for (i = 0; i < approvals.length; i++) {
-            _transferAndApprove(approvals[i], target);
+            _transferAndApprove(approvals[i], target, useTransferFlags[i]);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -128,10 +132,14 @@ contract BalanceProxy is IBalanceProxy {
     function proxyCallCalldataDiffs(
         Balance[] calldata diffs,
         Balance[] calldata approvals,
+        bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
         Balance[] calldata withdrawals
     ) external payable returns (bytes memory) {
+        if (useTransferFlags.length != approvals.length) {
+            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+        }
         _checkDangerousCallCalldata(target, data, approvals);
         uint256 i;
         uint256 len = diffs.length;
@@ -140,7 +148,7 @@ contract BalanceProxy is IBalanceProxy {
             before[i] = _currentBalance(diffs[i].token, diffs[i].target);
         }
         for (i = 0; i < approvals.length; i++) {
-            _transferAndApproveCalldata(approvals[i], target);
+            _transferAndApproveCalldata(approvals[i], target, useTransferFlags[i]);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -171,10 +179,14 @@ contract BalanceProxy is IBalanceProxy {
     function proxyCallMetadataDiffs(
         BalanceMetadata[] memory diffs,
         BalanceMetadata[] memory approvals,
+        bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         BalanceMetadata[] memory withdrawals
     ) external payable returns (bytes memory) {
+        if (useTransferFlags.length != approvals.length) {
+            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+        }
         _checkDangerousCallMetadata(target, data, approvals);
         uint256 i;
         uint256 len = diffs.length;
@@ -187,7 +199,7 @@ contract BalanceProxy is IBalanceProxy {
         }
         for (i = 0; i < approvals.length; i++) {
             _checkMetadata(approvals[i]);
-            _transferAndApprove(approvals[i].balance, target);
+            _transferAndApprove(approvals[i].balance, target, useTransferFlags[i]);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -222,10 +234,14 @@ contract BalanceProxy is IBalanceProxy {
     function proxyCallMetadataCalldataDiffs(
         BalanceMetadata[] calldata diffs,
         BalanceMetadata[] calldata approvals,
+        bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
         BalanceMetadata[] calldata withdrawals
     ) external payable returns (bytes memory) {
+        if (useTransferFlags.length != approvals.length) {
+            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+        }
         _checkDangerousCallMetadataCalldata(target, data, approvals);
         uint256 i;
         uint256 len = diffs.length;
@@ -238,7 +254,7 @@ contract BalanceProxy is IBalanceProxy {
         }
         for (i = 0; i < approvals.length; i++) {
             _checkMetadataCalldata(approvals[i]);
-            _transferAndApproveCalldata(approvals[i].balance, target);
+            _transferAndApproveCalldata(approvals[i].balance, target, useTransferFlags[i]);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -276,14 +292,18 @@ contract BalanceProxy is IBalanceProxy {
     function proxyCall(
         Balance[] memory postBalances,
         Balance[] memory approvals,
+        bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
+        if (useTransferFlags.length != approvals.length) {
+            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+        }
         _checkDangerousCall(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
-            _transferAndApprove(approvals[i], target);
+            _transferAndApprove(approvals[i], target, useTransferFlags[i]);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -305,14 +325,18 @@ contract BalanceProxy is IBalanceProxy {
     function proxyCallCalldata(
         Balance[] calldata postBalances,
         Balance[] calldata approvals,
+        bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
         Balance[] calldata withdrawals
     ) external payable returns (bytes memory) {
+        if (useTransferFlags.length != approvals.length) {
+            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+        }
         _checkDangerousCallCalldata(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
-            _transferAndApproveCalldata(approvals[i], target);
+            _transferAndApproveCalldata(approvals[i], target, useTransferFlags[i]);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -334,15 +358,19 @@ contract BalanceProxy is IBalanceProxy {
     function proxyCallMetadata(
         BalanceMetadata[] memory postBalances,
         BalanceMetadata[] memory approvals,
+        bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         BalanceMetadata[] memory withdrawals
     ) external payable returns (bytes memory) {
+        if (useTransferFlags.length != approvals.length) {
+            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+        }
         _checkDangerousCallMetadata(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
             _checkMetadata(approvals[i]);
-            _transferAndApprove(approvals[i].balance, target);
+            _transferAndApprove(approvals[i].balance, target, useTransferFlags[i]);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -366,15 +394,19 @@ contract BalanceProxy is IBalanceProxy {
     function proxyCallMetadataCalldata(
         BalanceMetadata[] calldata postBalances,
         BalanceMetadata[] calldata approvals,
+        bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
         BalanceMetadata[] calldata withdrawals
     ) external payable returns (bytes memory) {
+        if (useTransferFlags.length != approvals.length) {
+            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+        }
         _checkDangerousCallMetadataCalldata(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
             _checkMetadataCalldata(approvals[i]);
-            _transferAndApproveCalldata(approvals[i].balance, target);
+            _transferAndApproveCalldata(approvals[i].balance, target, useTransferFlags[i]);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -429,10 +461,12 @@ contract BalanceProxy is IBalanceProxy {
     /// @dev Internal function to transfer and approve a balance
     /// @param balance Balance to transfer and approve
     /// @param callTarget The target address for the proxy call
+    /// @param useTransfer Whether to transfer tokens to target or approve target to spend them
     /// @dev If the token is ETH, this function does nothing
     function _transferAndApprove(
         Balance memory balance,
-        address callTarget
+        address callTarget,
+        bool useTransfer
     ) internal {
         if (balance.token == address(0)) {
             return;
@@ -447,19 +481,31 @@ contract BalanceProxy is IBalanceProxy {
             address(this),
             SignedMath.abs(balance.balance)
         );
-        IERC20(balance.token).approve(
-            balance.target,
-            SignedMath.abs(balance.balance)
-        );
+        
+        if (useTransfer) {
+            // Transfer tokens directly to target (for Uniswap, Curve, etc.)
+            IERC20(balance.token).transfer(
+                balance.target,
+                SignedMath.abs(balance.balance)
+            );
+        } else {
+            // Approve target to spend tokens (default behavior)
+            IERC20(balance.token).approve(
+                balance.target,
+                SignedMath.abs(balance.balance)
+            );
+        }
     }
 
     /// @dev Calldata version of internal function to transfer and approve a balance
     /// @param balance Balance to transfer and approve
     /// @param callTarget The target address for the proxy call
+    /// @param useTransfer Whether to transfer tokens to target or approve target to spend them
     /// @dev If the token is ETH, this function does nothing
     function _transferAndApproveCalldata(
         Balance calldata balance,
-        address callTarget
+        address callTarget,
+        bool useTransfer
     ) internal {
         if (balance.token == address(0)) {
             return;
@@ -474,10 +520,20 @@ contract BalanceProxy is IBalanceProxy {
             address(this),
             SignedMath.abs(balance.balance)
         );
-        IERC20(balance.token).approve(
-            balance.target,
-            SignedMath.abs(balance.balance)
-        );
+        
+        if (useTransfer) {
+            // Transfer tokens directly to target (for Uniswap, Curve, etc.)
+            IERC20(balance.token).transfer(
+                balance.target,
+                SignedMath.abs(balance.balance)
+            );
+        } else {
+            // Approve target to spend tokens (default behavior)
+            IERC20(balance.token).approve(
+                balance.target,
+                SignedMath.abs(balance.balance)
+            );
+        }
     }
 
     /// @dev Internal function to transfer a balance

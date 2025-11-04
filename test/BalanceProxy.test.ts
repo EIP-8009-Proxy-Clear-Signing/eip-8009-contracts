@@ -159,6 +159,7 @@ describe('BalanceProxy', function () {
             target: erc20.address,
           },
         ],
+        [false], // useTransferFlags
         erc20.address,
         data,
         [],
@@ -202,6 +203,7 @@ describe('BalanceProxy', function () {
               target: other.account.address,
             },
           ],
+          [false], // useTransferFlags
           other.account.address,
           '0x00',
           [],
@@ -230,6 +232,7 @@ describe('BalanceProxy', function () {
               target: target.address,
             },
           ],
+          [false], // useTransferFlags
           target.address,
           data,
           [],
@@ -267,6 +270,7 @@ describe('BalanceProxy', function () {
             token: erc20.address,
           },
         ],
+        [false], // useTransferFlags
         target.address,
         data,
         [
@@ -314,6 +318,7 @@ describe('BalanceProxy', function () {
             token: erc20.address,
           },
         ],
+        [false], // useTransferFlags
         target.address,
         data,
         [
@@ -351,6 +356,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        [false], // useTransferFlags
         erc20.address,
         data,
         [],
@@ -406,6 +412,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          [false], // useTransferFlags
           other.account.address,
           '0x00',
           [],
@@ -438,6 +445,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          [false], // useTransferFlags
           target.address,
           data,
           [],
@@ -487,6 +495,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        [false], // useTransferFlags
         target.address,
         data,
         [
@@ -550,6 +559,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        [false], // useTransferFlags
         target.address,
         data,
         [
@@ -590,6 +600,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          [false], // useTransferFlags
           erc20.address,
           data,
           [],
@@ -621,6 +632,7 @@ describe('BalanceProxy', function () {
               decimals: 6,
             },
           ],
+          [false], // useTransferFlags
           erc20.address,
           data,
           [],
@@ -649,6 +661,7 @@ describe('BalanceProxy', function () {
             target: erc20.address,
           },
         ],
+        [false], // useTransferFlags
         erc20.address,
         data,
         [],
@@ -692,6 +705,7 @@ describe('BalanceProxy', function () {
               target: other.account.address,
             },
           ],
+          [false], // useTransferFlags
           other.account.address,
           '0x00',
           [],
@@ -720,6 +734,7 @@ describe('BalanceProxy', function () {
               target: target.address,
             },
           ],
+          [false], // useTransferFlags
           target.address,
           data,
           [],
@@ -757,6 +772,7 @@ describe('BalanceProxy', function () {
             token: erc20.address,
           },
         ],
+        [false], // useTransferFlags
         target.address,
         data,
         [
@@ -804,6 +820,7 @@ describe('BalanceProxy', function () {
             token: erc20.address,
           },
         ],
+        [false], // useTransferFlags
         target.address,
         data,
         [
@@ -841,6 +858,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        [false], // useTransferFlags
         erc20.address,
         data,
         [],
@@ -896,6 +914,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          [false], // useTransferFlags
           other.account.address,
           '0x00',
           [],
@@ -928,6 +947,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          [false], // useTransferFlags
           target.address,
           data,
           [],
@@ -977,6 +997,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        [false], // useTransferFlags
         target.address,
         data,
         [
@@ -1040,6 +1061,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        [false], // useTransferFlags
         target.address,
         data,
         [
@@ -1080,6 +1102,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          [false], // useTransferFlags
           erc20.address,
           data,
           [],
@@ -1111,6 +1134,7 @@ describe('BalanceProxy', function () {
               decimals: 6,
             },
           ],
+          [false], // useTransferFlags
           erc20.address,
           data,
           [],

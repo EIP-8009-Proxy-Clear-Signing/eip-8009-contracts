@@ -71,7 +71,7 @@ describe('�️ SECURITY: Direct transferFrom Attack Protection', function () {
 
     await expect(
       balanceProxy.write.proxyCall(
-        [[], [], erc20.address, transferFromCalldata, []],
+        [[], [], [], erc20.address, transferFromCalldata, []],
         {
           account: attacker.account,
         },

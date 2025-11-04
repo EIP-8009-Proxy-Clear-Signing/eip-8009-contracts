@@ -57,6 +57,7 @@ describe('�️ SECURITY: Malicious Approve Target Protection', function () {
             balance: STOLEN_AMOUNT,
           },
         ],
+        [], // useTransferFlags
         victim.account.address,
         '0x',
         [],

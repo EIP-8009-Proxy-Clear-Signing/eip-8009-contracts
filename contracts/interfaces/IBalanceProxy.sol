@@ -80,9 +80,15 @@ interface IBalanceProxy {
     /// @param target Malicious target address
     error MaliciousApproveTarget(address token, address target);
 
+    /// @notice Error thrown when useTransferFlags length does not match approvals length
+    /// @param flagsLength Length of useTransferFlags array
+    /// @param approvalsLength Length of approvals array
+    error InvalidTransferFlagsLength(uint256 flagsLength, uint256 approvalsLength);
+
     /// @notice Proxy call to a target contract with specified balances and approvals
     /// @param postBalances Balances to check after the call
     /// @param approvals Approvals to make before the call
+    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
@@ -90,6 +96,7 @@ interface IBalanceProxy {
     function proxyCall(
         Balance[] memory postBalances,
         Balance[] memory approvals,
+        bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         Balance[] memory withdrawals
@@ -98,6 +105,7 @@ interface IBalanceProxy {
     /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
     /// @param postBalances Balances to check after the call
     /// @param approvals Approvals to make before the call
+    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
@@ -105,6 +113,7 @@ interface IBalanceProxy {
     function proxyCallCalldata(
         Balance[] calldata postBalances,
         Balance[] calldata approvals,
+        bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
         Balance[] calldata withdrawals
@@ -113,6 +122,7 @@ interface IBalanceProxy {
     /// @notice Proxy call to a target contract with specified balances and approvals
     /// @param postBalances Balances to check after the call
     /// @param approvals Approvals to make before the call
+    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
@@ -120,6 +130,7 @@ interface IBalanceProxy {
     function proxyCallMetadata(
         BalanceMetadata[] memory postBalances,
         BalanceMetadata[] memory approvals,
+        bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         BalanceMetadata[] memory withdrawals
@@ -128,6 +139,7 @@ interface IBalanceProxy {
     /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
     /// @param postBalances Balances to check after the call
     /// @param approvals Approvals to make before the call
+    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
@@ -135,6 +147,7 @@ interface IBalanceProxy {
     function proxyCallMetadataCalldata(
         BalanceMetadata[] calldata postBalances,
         BalanceMetadata[] calldata approvals,
+        bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
         BalanceMetadata[] calldata withdrawals
@@ -143,6 +156,7 @@ interface IBalanceProxy {
     /// @notice Proxy call to a target contract with specified balances and approvals
     /// @param diffs Balances to check after the call
     /// @param approvals Approvals to make before the call
+    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
@@ -150,6 +164,7 @@ interface IBalanceProxy {
     function proxyCallDiffs(
         Balance[] memory diffs,
         Balance[] memory approvals,
+        bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         Balance[] memory withdrawals
@@ -158,6 +173,7 @@ interface IBalanceProxy {
     /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
     /// @param diffs Balances to check after the call
     /// @param approvals Approvals to make before the call
+    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
@@ -165,6 +181,7 @@ interface IBalanceProxy {
     function proxyCallCalldataDiffs(
         Balance[] calldata diffs,
         Balance[] calldata approvals,
+        bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
         Balance[] calldata withdrawals
@@ -173,6 +190,7 @@ interface IBalanceProxy {
     /// @notice Proxy call to a target contract with specified balances and approvals
     /// @param diffs Balances to check after the call
     /// @param approvals Approvals to make before the call
+    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
@@ -180,6 +198,7 @@ interface IBalanceProxy {
     function proxyCallMetadataDiffs(
         BalanceMetadata[] memory diffs,
         BalanceMetadata[] memory approvals,
+        bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         BalanceMetadata[] memory withdrawals
@@ -195,6 +214,7 @@ interface IBalanceProxy {
     function proxyCallMetadataCalldataDiffs(
         BalanceMetadata[] calldata diffs,
         BalanceMetadata[] calldata approvals,
+        bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
         BalanceMetadata[] calldata withdrawals
