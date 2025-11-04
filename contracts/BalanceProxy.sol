@@ -91,7 +91,10 @@ contract BalanceProxy is IBalanceProxy {
         Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
         if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+            revert InvalidTransferFlagsLength(
+                useTransferFlags.length,
+                approvals.length
+            );
         }
         _checkDangerousCall(target, data, approvals);
         uint256 i;
@@ -138,7 +141,10 @@ contract BalanceProxy is IBalanceProxy {
         Balance[] calldata withdrawals
     ) external payable returns (bytes memory) {
         if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+            revert InvalidTransferFlagsLength(
+                useTransferFlags.length,
+                approvals.length
+            );
         }
         _checkDangerousCallCalldata(target, data, approvals);
         uint256 i;
@@ -148,7 +154,11 @@ contract BalanceProxy is IBalanceProxy {
             before[i] = _currentBalance(diffs[i].token, diffs[i].target);
         }
         for (i = 0; i < approvals.length; i++) {
-            _transferAndApproveCalldata(approvals[i], target, useTransferFlags[i]);
+            _transferAndApproveCalldata(
+                approvals[i],
+                target,
+                useTransferFlags[i]
+            );
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -185,7 +195,10 @@ contract BalanceProxy is IBalanceProxy {
         BalanceMetadata[] memory withdrawals
     ) external payable returns (bytes memory) {
         if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+            revert InvalidTransferFlagsLength(
+                useTransferFlags.length,
+                approvals.length
+            );
         }
         _checkDangerousCallMetadata(target, data, approvals);
         uint256 i;
@@ -199,7 +212,11 @@ contract BalanceProxy is IBalanceProxy {
         }
         for (i = 0; i < approvals.length; i++) {
             _checkMetadata(approvals[i]);
-            _transferAndApprove(approvals[i].balance, target, useTransferFlags[i]);
+            _transferAndApprove(
+                approvals[i].balance,
+                target,
+                useTransferFlags[i]
+            );
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -240,7 +257,10 @@ contract BalanceProxy is IBalanceProxy {
         BalanceMetadata[] calldata withdrawals
     ) external payable returns (bytes memory) {
         if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+            revert InvalidTransferFlagsLength(
+                useTransferFlags.length,
+                approvals.length
+            );
         }
         _checkDangerousCallMetadataCalldata(target, data, approvals);
         uint256 i;
@@ -254,7 +274,11 @@ contract BalanceProxy is IBalanceProxy {
         }
         for (i = 0; i < approvals.length; i++) {
             _checkMetadataCalldata(approvals[i]);
-            _transferAndApproveCalldata(approvals[i].balance, target, useTransferFlags[i]);
+            _transferAndApproveCalldata(
+                approvals[i].balance,
+                target,
+                useTransferFlags[i]
+            );
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -298,7 +322,10 @@ contract BalanceProxy is IBalanceProxy {
         Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
         if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+            revert InvalidTransferFlagsLength(
+                useTransferFlags.length,
+                approvals.length
+            );
         }
         _checkDangerousCall(target, data, approvals);
         uint256 i;
@@ -331,12 +358,19 @@ contract BalanceProxy is IBalanceProxy {
         Balance[] calldata withdrawals
     ) external payable returns (bytes memory) {
         if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+            revert InvalidTransferFlagsLength(
+                useTransferFlags.length,
+                approvals.length
+            );
         }
         _checkDangerousCallCalldata(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
-            _transferAndApproveCalldata(approvals[i], target, useTransferFlags[i]);
+            _transferAndApproveCalldata(
+                approvals[i],
+                target,
+                useTransferFlags[i]
+            );
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -364,13 +398,20 @@ contract BalanceProxy is IBalanceProxy {
         BalanceMetadata[] memory withdrawals
     ) external payable returns (bytes memory) {
         if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+            revert InvalidTransferFlagsLength(
+                useTransferFlags.length,
+                approvals.length
+            );
         }
         _checkDangerousCallMetadata(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
             _checkMetadata(approvals[i]);
-            _transferAndApprove(approvals[i].balance, target, useTransferFlags[i]);
+            _transferAndApprove(
+                approvals[i].balance,
+                target,
+                useTransferFlags[i]
+            );
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -400,13 +441,20 @@ contract BalanceProxy is IBalanceProxy {
         BalanceMetadata[] calldata withdrawals
     ) external payable returns (bytes memory) {
         if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(useTransferFlags.length, approvals.length);
+            revert InvalidTransferFlagsLength(
+                useTransferFlags.length,
+                approvals.length
+            );
         }
         _checkDangerousCallMetadataCalldata(target, data, approvals);
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
             _checkMetadataCalldata(approvals[i]);
-            _transferAndApproveCalldata(approvals[i].balance, target, useTransferFlags[i]);
+            _transferAndApproveCalldata(
+                approvals[i].balance,
+                target,
+                useTransferFlags[i]
+            );
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
@@ -481,7 +529,7 @@ contract BalanceProxy is IBalanceProxy {
             address(this),
             SignedMath.abs(balance.balance)
         );
-        
+
         if (useTransfer) {
             // Transfer tokens directly to target (for Uniswap, Curve, etc.)
             IERC20(balance.token).transfer(
@@ -520,7 +568,7 @@ contract BalanceProxy is IBalanceProxy {
             address(this),
             SignedMath.abs(balance.balance)
         );
-        
+
         if (useTransfer) {
             // Transfer tokens directly to target (for Uniswap, Curve, etc.)
             IERC20(balance.token).transfer(

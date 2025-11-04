@@ -83,7 +83,10 @@ interface IBalanceProxy {
     /// @notice Error thrown when useTransferFlags length does not match approvals length
     /// @param flagsLength Length of useTransferFlags array
     /// @param approvalsLength Length of approvals array
-    error InvalidTransferFlagsLength(uint256 flagsLength, uint256 approvalsLength);
+    error InvalidTransferFlagsLength(
+        uint256 flagsLength,
+        uint256 approvalsLength
+    );
 
     /// @notice Proxy call to a target contract with specified balances and approvals
     /// @param postBalances Balances to check after the call
