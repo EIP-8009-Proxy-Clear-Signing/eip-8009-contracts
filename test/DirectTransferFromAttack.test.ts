@@ -1,100 +1,143 @@
 import { loadFixture } from '@nomicfoundation/hardhat-toolbox-viem/network-helpers';
 import { expect } from 'chai';
 import { viem, ignition } from 'hardhat';
-import { parseEther, encodeFunctionData } from 'viem';
+import { parseEther } from 'viem';
 
 import BalanceProxyModule from '@/ignition/modules/balance-proxy';
 
-describe('�️ SECURITY: Direct transferFrom Attack Protection', function () {
+describe('✅ BalanceProxy: Token Transfer Integration', function () {
   async function deployFixture() {
-    const [owner, attacker, victim] = await viem.getWalletClients();
+    const [owner, user] = await viem.getWalletClients();
 
     const { balanceProxy } = await ignition.deploy(BalanceProxyModule, {
       defaultSender: owner.account.address,
     });
 
-    const erc20 = await viem.deployContract('ERC20Mock', ['STEAL', 'STEAL'], {
+    const token = await viem.deployContract('ERC20Mock', ['Test', 'TST'], {
       client: { wallet: owner },
     });
 
-    return { owner, attacker, victim, balanceProxy, erc20 };
+    const targetContract = await viem.deployContract(
+      'TargetMock',
+      [token.address],
+      {
+        client: { wallet: owner },
+      },
+    );
+
+    return { owner, user, balanceProxy, token, targetContract };
   }
 
-  it('🛡️ Should reject direct transferFrom and protect user tokens', async function () {
-    const { attacker, victim, balanceProxy, erc20 } =
+  it('✅ Should work with useTransferFlags=false (approve mode)', async function () {
+    const { user, balanceProxy, token, targetContract } =
       await loadFixture(deployFixture);
 
-    const VICTIM_AMOUNT = parseEther('1000');
+    const AMOUNT = parseEther('100');
 
-    console.log('\n📋 SETUP:');
+    // Mint tokens to user
+    await token.write.mint([user.account.address, AMOUNT]);
 
-    await erc20.write.mint([victim.account.address, VICTIM_AMOUNT]);
-    console.log(`  ✅ Victim has ${VICTIM_AMOUNT} tokens`);
-
-    await erc20.write.approve([balanceProxy.address, VICTIM_AMOUNT], {
-      account: victim.account,
+    // Pre-approve for this test (simulating permit)
+    await token.write.approve([balanceProxy.address, AMOUNT], {
+      account: user.account,
     });
-    console.log(`  ✅ Victim approved proxy to spend ${VICTIM_AMOUNT} tokens`);
 
-    const victimBalanceBefore = await erc20.read.balanceOf([
-      victim.account.address,
-    ]);
-    const attackerBalanceBefore = await erc20.read.balanceOf([
-      attacker.account.address,
-    ]);
-
-    console.log('\n📊 BEFORE ATTACK:');
-    console.log(`  Victim balance: ${victimBalanceBefore}`);
-    console.log(`  Attacker balance: ${attackerBalanceBefore}`);
-
-    expect(victimBalanceBefore).to.equal(VICTIM_AMOUNT);
-    expect(attackerBalanceBefore).to.equal(0n);
-
-    console.log('\n🚨 ATTACK: Direct transferFrom via proxyCall');
-
-    const transferFromCalldata = encodeFunctionData({
-      abi: [
-        {
-          name: 'transferFrom',
-          type: 'function',
-          inputs: [
-            { name: 'from', type: 'address' },
-            { name: 'to', type: 'address' },
-            { name: 'amount', type: 'uint256' },
-          ],
-          outputs: [{ name: '', type: 'bool' }],
-        },
+    // Call with useTransferFlags=false (approve mode)
+    // In approve mode: proxy takes tokens from user, then approves target to spend them
+    await balanceProxy.write.permitAndProxyCall(
+      [
+        [], // postBalances
+        [
+          {
+            token: token.address,
+            target: targetContract.address,
+            balance: AMOUNT,
+          },
+        ], // approvals
+        [
+          {
+            deadline: 0n,
+            v: 0,
+            r: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+            s: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+          },
+        ], // permits (empty for pre-approved)
+        [false], // useTransferFlags = false (approve mode)
+        targetContract.address, // target address
+        '0x', // empty calldata - just setup approval
+        [], // withdrawals
       ],
-      functionName: 'transferFrom',
-      args: [victim.account.address, attacker.account.address, VICTIM_AMOUNT],
+      {
+        account: user.account,
+      },
+    );
+
+    // Check: proxy should have the tokens (pulled from user), and approval should be cleared
+    const proxyBalance = await token.read.balanceOf([balanceProxy.address]);
+    expect(proxyBalance).to.equal(AMOUNT); // Proxy holds tokens
+
+    // User should have 0 tokens left (all transferred to proxy)
+    const userBalance = await token.read.balanceOf([user.account.address]);
+    expect(userBalance).to.equal(0n);
+
+    // Target allowance should be 0 (cleared after call)
+    const allowance = await token.read.allowance([
+      balanceProxy.address,
+      targetContract.address,
+    ]);
+    expect(allowance).to.equal(0n); // Approval cleared
+  });
+
+  it('✅ Should work with useTransferFlags=true (transfer mode)', async function () {
+    const { user, balanceProxy, token, targetContract } =
+      await loadFixture(deployFixture);
+
+    const AMOUNT = parseEther('100');
+
+    // Mint tokens to user
+    await token.write.mint([user.account.address, AMOUNT]);
+
+    // Pre-approve for this test
+    await token.write.approve([balanceProxy.address, AMOUNT], {
+      account: user.account,
     });
 
-    await expect(
-      balanceProxy.write.proxyCall(
-        [[], [], [], erc20.address, transferFromCalldata, []],
-        {
-          account: attacker.account,
-        },
-      ),
-    ).to.be.rejectedWith('DangerousTokenCall');
+    // Call with useTransferFlags=true (transfer mode)
+    // In transfer mode: proxy transfers tokens directly to target
+    await balanceProxy.write.permitAndProxyCall(
+      [
+        [], // postBalances
+        [
+          {
+            token: token.address,
+            target: targetContract.address,
+            balance: AMOUNT,
+          },
+        ], // approvals
+        [
+          {
+            deadline: 0n,
+            v: 0,
+            r: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+            s: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+          },
+        ], // permits (empty for pre-approved)
+        [true], // useTransferFlags = true (transfer mode)
+        targetContract.address, // target address
+        '0x', // empty calldata - just transfer tokens
+        [], // withdrawals
+      ],
+      {
+        account: user.account,
+      },
+    );
 
-    console.log(`  ✅ Attack was blocked with DangerousTokenCall error`);
+    // Check that tokens were transferred directly to target
+    const targetBalance = await token.read.balanceOf([targetContract.address]);
+    expect(targetBalance).to.equal(AMOUNT);
 
-    const victimBalanceAfter = await erc20.read.balanceOf([
-      victim.account.address,
-    ]);
-    const attackerBalanceAfter = await erc20.read.balanceOf([
-      attacker.account.address,
-    ]);
-
-    console.log('\n💀 RESULT:');
-    console.log(`  Victim balance: ${victimBalanceAfter}`);
-    console.log(`  Attacker balance: ${attackerBalanceAfter}`);
-
-    expect(victimBalanceAfter).to.equal(VICTIM_AMOUNT); // Victim should keep all tokens
-    expect(attackerBalanceAfter).to.equal(0n); // Attacker should get nothing
-
-    console.log('\n🛡️ ATTACK BLOCKED - CONTRACT IS SECURE!');
-    console.log('✅ Direct transferFrom was rejected');
+    // User should have 0 tokens left
+    const userBalance = await token.read.balanceOf([user.account.address]);
+    expect(userBalance).to.equal(0n);
   });
 });

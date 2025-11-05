@@ -133,13 +133,23 @@ const encodeMintEth = (take: bigint, give: bigint) => {
   });
 };
 
+// Helper to create empty permit data (for use with pre-approved tokens)
+const createEmptyPermits = (count: number) => {
+  return Array(count).fill({
+    deadline: 0n,
+    v: 0,
+    r: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+    s: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+  });
+};
+
 describe('BalanceProxy', function () {
   it('should deploy and be callable', async function () {
     const { balanceProxy } = await loadFixture(deployFixture);
     expect(balanceProxy.address).to.be.a('string');
   });
 
-  describe('proxyCall', function () {
+  describe('permitAndProxyCall', function () {
     it('should call a target contract', async function () {
       const { balanceProxy, erc20, owner, other } =
         await loadFixture(deployFixture);
@@ -150,7 +160,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeTransfer(other.account.address, amount);
 
-      await balanceProxy.write.proxyCall([
+      await balanceProxy.write.permitAndProxyCall([
         [],
         [
           {
@@ -159,6 +169,7 @@ describe('BalanceProxy', function () {
             target: erc20.address,
           },
         ],
+        createEmptyPermits(1), // Empty permit for 1 approval
         [false], // useTransferFlags
         erc20.address,
         data,
@@ -182,7 +193,7 @@ describe('BalanceProxy', function () {
       const gasCost = parseEther('0.1');
       const amount = parseEther('1');
 
-      await balanceProxy.write.proxyCall(
+      await balanceProxy.write.permitAndProxyCall(
         [
           [
             {
@@ -203,6 +214,7 @@ describe('BalanceProxy', function () {
               target: other.account.address,
             },
           ],
+          createEmptyPermits(1), // Empty permit for 1 approval
           [false], // useTransferFlags
           other.account.address,
           '0x00',
@@ -223,7 +235,7 @@ describe('BalanceProxy', function () {
       const data = encodeTransfer(other.account.address, amount);
 
       await expect(
-        balanceProxy.write.proxyCall([
+        balanceProxy.write.permitAndProxyCall([
           [],
           [
             {
@@ -232,6 +244,7 @@ describe('BalanceProxy', function () {
               target: target.address,
             },
           ],
+          createEmptyPermits(1), // Empty permit for 1 approval
           [false], // useTransferFlags
           target.address,
           data,
@@ -250,7 +263,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeMint(amount, amount * 2n);
 
-      await balanceProxy.write.proxyCall([
+      await balanceProxy.write.permitAndProxyCall([
         [
           {
             balance: amount * 2n,
@@ -270,6 +283,7 @@ describe('BalanceProxy', function () {
             token: erc20.address,
           },
         ],
+        createEmptyPermits(1), // Empty permit for 1 approval
         [false], // useTransferFlags
         target.address,
         data,
@@ -298,7 +312,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeMintEth(amount, amount * 2n);
 
-      await balanceProxy.write.proxyCall([
+      await balanceProxy.write.permitAndProxyCall([
         [
           {
             balance: balanceBefore + amount * 2n,
@@ -318,6 +332,7 @@ describe('BalanceProxy', function () {
             token: erc20.address,
           },
         ],
+        createEmptyPermits(1), // Empty permit for 1 approval
         [false], // useTransferFlags
         target.address,
         data,
@@ -332,7 +347,7 @@ describe('BalanceProxy', function () {
     });
   });
 
-  describe('proxyCallMetadata', function () {
+  describe('permitAndProxyCallMetadata', function () {
     it('should call a target contract', async function () {
       const { balanceProxy, erc20, owner, other } =
         await loadFixture(deployFixture);
@@ -343,7 +358,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeTransfer(other.account.address, amount);
 
-      await balanceProxy.write.proxyCallMetadata([
+      await balanceProxy.write.permitAndProxyCallMetadata([
         [],
         [
           {
@@ -356,6 +371,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        createEmptyPermits(1), // Empty permit for 1 approval
         [false], // useTransferFlags
         erc20.address,
         data,
@@ -379,7 +395,7 @@ describe('BalanceProxy', function () {
       const gasCost = parseEther('0.1');
       const amount = parseEther('1');
 
-      await balanceProxy.write.proxyCallMetadata(
+      await balanceProxy.write.permitAndProxyCallMetadata(
         [
           [
             {
@@ -412,6 +428,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          createEmptyPermits(1),
           [false], // useTransferFlags
           other.account.address,
           '0x00',
@@ -432,7 +449,7 @@ describe('BalanceProxy', function () {
       const data = encodeTransfer(other.account.address, amount);
 
       await expect(
-        balanceProxy.write.proxyCallMetadata([
+        balanceProxy.write.permitAndProxyCallMetadata([
           [],
           [
             {
@@ -445,6 +462,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          createEmptyPermits(1),
           [false], // useTransferFlags
           target.address,
           data,
@@ -463,7 +481,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeMint(amount, amount * 2n);
 
-      await balanceProxy.write.proxyCallMetadata([
+      await balanceProxy.write.permitAndProxyCallMetadata([
         [
           {
             balance: {
@@ -495,6 +513,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        createEmptyPermits(1),
         [false], // useTransferFlags
         target.address,
         data,
@@ -527,7 +546,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeMintEth(amount, amount * 2n);
 
-      await balanceProxy.write.proxyCallMetadata([
+      await balanceProxy.write.permitAndProxyCallMetadata([
         [
           {
             balance: {
@@ -559,6 +578,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        createEmptyPermits(1),
         [false], // useTransferFlags
         target.address,
         data,
@@ -587,7 +607,7 @@ describe('BalanceProxy', function () {
       const data = encodeTransfer(other.account.address, amount);
 
       await expect(
-        balanceProxy.write.proxyCallMetadata([
+        balanceProxy.write.permitAndProxyCallMetadata([
           [],
           [
             {
@@ -600,6 +620,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          createEmptyPermits(1),
           [false], // useTransferFlags
           erc20.address,
           data,
@@ -619,7 +640,7 @@ describe('BalanceProxy', function () {
       const data = encodeTransfer(other.account.address, amount);
 
       await expect(
-        balanceProxy.write.proxyCallMetadata([
+        balanceProxy.write.permitAndProxyCallMetadata([
           [],
           [
             {
@@ -632,6 +653,7 @@ describe('BalanceProxy', function () {
               decimals: 6,
             },
           ],
+          createEmptyPermits(1),
           [false], // useTransferFlags
           erc20.address,
           data,
@@ -641,7 +663,7 @@ describe('BalanceProxy', function () {
     });
   });
 
-  describe('proxyCallCalldata', function () {
+  describe('permitAndProxyCallCalldata', function () {
     it('should call a target contract', async function () {
       const { balanceProxy, erc20, owner, other } =
         await loadFixture(deployFixture);
@@ -652,7 +674,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeTransfer(other.account.address, amount);
 
-      await balanceProxy.write.proxyCallCalldata([
+      await balanceProxy.write.permitAndProxyCallCalldata([
         [],
         [
           {
@@ -661,7 +683,8 @@ describe('BalanceProxy', function () {
             target: erc20.address,
           },
         ],
-        [false], // useTransferFlags
+        createEmptyPermits(1),
+        [false],
         erc20.address,
         data,
         [],
@@ -684,7 +707,7 @@ describe('BalanceProxy', function () {
       const gasCost = parseEther('0.1');
       const amount = parseEther('1');
 
-      await balanceProxy.write.proxyCallCalldata(
+      await balanceProxy.write.permitAndProxyCallCalldata(
         [
           [
             {
@@ -705,6 +728,7 @@ describe('BalanceProxy', function () {
               target: other.account.address,
             },
           ],
+          createEmptyPermits(1), // Empty permit for 1 approval
           [false], // useTransferFlags
           other.account.address,
           '0x00',
@@ -725,7 +749,7 @@ describe('BalanceProxy', function () {
       const data = encodeTransfer(other.account.address, amount);
 
       await expect(
-        balanceProxy.write.proxyCallCalldata([
+        balanceProxy.write.permitAndProxyCallCalldata([
           [],
           [
             {
@@ -734,7 +758,8 @@ describe('BalanceProxy', function () {
               target: target.address,
             },
           ],
-          [false], // useTransferFlags
+          createEmptyPermits(1),
+          [false],
           target.address,
           data,
           [],
@@ -752,7 +777,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeMint(amount, amount * 2n);
 
-      await balanceProxy.write.proxyCallCalldata([
+      await balanceProxy.write.permitAndProxyCallCalldata([
         [
           {
             balance: amount * 2n,
@@ -772,6 +797,7 @@ describe('BalanceProxy', function () {
             token: erc20.address,
           },
         ],
+        createEmptyPermits(1),
         [false], // useTransferFlags
         target.address,
         data,
@@ -800,7 +826,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeMintEth(amount, amount * 2n);
 
-      await balanceProxy.write.proxyCallCalldata([
+      await balanceProxy.write.permitAndProxyCallCalldata([
         [
           {
             balance: balanceBefore + amount * 2n,
@@ -820,6 +846,7 @@ describe('BalanceProxy', function () {
             token: erc20.address,
           },
         ],
+        createEmptyPermits(1),
         [false], // useTransferFlags
         target.address,
         data,
@@ -834,7 +861,7 @@ describe('BalanceProxy', function () {
     });
   });
 
-  describe('proxyCallMetadataCalldata', function () {
+  describe('permitAndProxyCallMetadataCalldata', function () {
     it('should call a target contract', async function () {
       const { balanceProxy, erc20, owner, other } =
         await loadFixture(deployFixture);
@@ -845,7 +872,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeTransfer(other.account.address, amount);
 
-      await balanceProxy.write.proxyCallMetadataCalldata([
+      await balanceProxy.write.permitAndProxyCallMetadataCalldata([
         [],
         [
           {
@@ -858,6 +885,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        createEmptyPermits(1),
         [false], // useTransferFlags
         erc20.address,
         data,
@@ -881,7 +909,7 @@ describe('BalanceProxy', function () {
       const gasCost = parseEther('0.1');
       const amount = parseEther('1');
 
-      await balanceProxy.write.proxyCallMetadataCalldata(
+      await balanceProxy.write.permitAndProxyCallMetadataCalldata(
         [
           [
             {
@@ -914,6 +942,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          createEmptyPermits(1),
           [false], // useTransferFlags
           other.account.address,
           '0x00',
@@ -934,7 +963,7 @@ describe('BalanceProxy', function () {
       const data = encodeTransfer(other.account.address, amount);
 
       await expect(
-        balanceProxy.write.proxyCallMetadataCalldata([
+        balanceProxy.write.permitAndProxyCallMetadataCalldata([
           [],
           [
             {
@@ -947,6 +976,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          createEmptyPermits(1),
           [false], // useTransferFlags
           target.address,
           data,
@@ -965,7 +995,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeMint(amount, amount * 2n);
 
-      await balanceProxy.write.proxyCallMetadataCalldata([
+      await balanceProxy.write.permitAndProxyCallMetadataCalldata([
         [
           {
             balance: {
@@ -997,6 +1027,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        createEmptyPermits(1),
         [false], // useTransferFlags
         target.address,
         data,
@@ -1029,7 +1060,7 @@ describe('BalanceProxy', function () {
 
       const data = encodeMintEth(amount, amount * 2n);
 
-      await balanceProxy.write.proxyCallMetadataCalldata([
+      await balanceProxy.write.permitAndProxyCallMetadataCalldata([
         [
           {
             balance: {
@@ -1061,6 +1092,7 @@ describe('BalanceProxy', function () {
             decimals: 18,
           },
         ],
+        createEmptyPermits(1),
         [false], // useTransferFlags
         target.address,
         data,
@@ -1089,7 +1121,7 @@ describe('BalanceProxy', function () {
       const data = encodeTransfer(other.account.address, amount);
 
       await expect(
-        balanceProxy.write.proxyCallMetadataCalldata([
+        balanceProxy.write.permitAndProxyCallMetadataCalldata([
           [],
           [
             {
@@ -1102,6 +1134,7 @@ describe('BalanceProxy', function () {
               decimals: 18,
             },
           ],
+          createEmptyPermits(1),
           [false], // useTransferFlags
           erc20.address,
           data,
@@ -1121,7 +1154,7 @@ describe('BalanceProxy', function () {
       const data = encodeTransfer(other.account.address, amount);
 
       await expect(
-        balanceProxy.write.proxyCallMetadataCalldata([
+        balanceProxy.write.permitAndProxyCallMetadataCalldata([
           [],
           [
             {
@@ -1134,6 +1167,7 @@ describe('BalanceProxy', function () {
               decimals: 6,
             },
           ],
+          createEmptyPermits(1),
           [false], // useTransferFlags
           erc20.address,
           data,

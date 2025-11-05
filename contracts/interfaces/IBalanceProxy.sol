@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.27;
 
+import {PermitData} from "./IPermit.sol";
+
 /// @title IBalanceProxy
 /// @notice Interface for the BalanceProxy contract
 /// @dev This interface is used to proxy calls to a target contract with specified balances and approvals
@@ -26,6 +28,9 @@ interface IBalanceProxy {
         int256 expected,
         int256 actual
     );
+    error PermitExpired(uint256 deadline);
+    error PermitFailed(address owner, address token);
+    error InvalidPermitLength(uint256 permitsLength, uint256 approvalsLength);
 
     /// @notice Struct to represent metadata of a balance
     /// @param target Target address
@@ -70,11 +75,6 @@ interface IBalanceProxy {
         uint8 actualDecimals
     );
 
-    /// @notice Error thrown when trying to call a dangerous token function on a token from approvals
-    /// @param target Target address
-    /// @param selector Function selector being called
-    error DangerousTokenCall(address target, bytes4 selector);
-
     /// @notice Error thrown when trying to approve tokens to an address other than callTarget
     /// @param token Token address
     /// @param target Malicious target address
@@ -88,135 +88,98 @@ interface IBalanceProxy {
         uint256 approvalsLength
     );
 
-    /// @notice Proxy call to a target contract with specified balances and approvals
+    // Legacy proxyCall* functions removed in dev build; use permitAndProxyCall* only
+
+    /// @notice Proxy call to a target contract with specified balances and approvals using permits
     /// @param postBalances Balances to check after the call
     /// @param approvals Approvals to make before the call
+    /// @param permits Permit data for each approval
     /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
     /// @param target Target contract to call
     /// @param data Data to pass to the target contract
     /// @param withdrawals Withdrawals to make after the call
     /// @return Result of the call
-    function proxyCall(
+    function permitAndProxyCall(
         Balance[] memory postBalances,
         Balance[] memory approvals,
+        PermitData[] memory permits,
         bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         Balance[] memory withdrawals
     ) external payable returns (bytes memory);
 
-    /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
-    /// @param postBalances Balances to check after the call
-    /// @param approvals Approvals to make before the call
-    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
-    /// @param target Target contract to call
-    /// @param data Data to pass to the target contract
-    /// @param withdrawals Withdrawals to make after the call
-    /// @return result Result of the call
-    function proxyCallCalldata(
+    /// @notice Calldata version of proxyCall with permits
+    function permitAndProxyCallCalldata(
         Balance[] calldata postBalances,
         Balance[] calldata approvals,
+        PermitData[] calldata permits,
         bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
         Balance[] calldata withdrawals
     ) external payable returns (bytes memory);
 
-    /// @notice Proxy call to a target contract with specified balances and approvals
-    /// @param postBalances Balances to check after the call
-    /// @param approvals Approvals to make before the call
-    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
-    /// @param target Target contract to call
-    /// @param data Data to pass to the target contract
-    /// @param withdrawals Withdrawals to make after the call
-    /// @return Result of the call
-    function proxyCallMetadata(
+    /// @notice Proxy call with metadata and permits
+    function permitAndProxyCallMetadata(
         BalanceMetadata[] memory postBalances,
         BalanceMetadata[] memory approvals,
+        PermitData[] memory permits,
         bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         BalanceMetadata[] memory withdrawals
     ) external payable returns (bytes memory);
 
-    /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
-    /// @param postBalances Balances to check after the call
-    /// @param approvals Approvals to make before the call
-    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
-    /// @param target Target contract to call
-    /// @param data Data to pass to the target contract
-    /// @param withdrawals Withdrawals to make after the call
-    /// @return result Result of the call
-    function proxyCallMetadataCalldata(
+    /// @notice Calldata version of proxyCall with metadata and permits
+    function permitAndProxyCallMetadataCalldata(
         BalanceMetadata[] calldata postBalances,
         BalanceMetadata[] calldata approvals,
+        PermitData[] calldata permits,
         bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
         BalanceMetadata[] calldata withdrawals
     ) external payable returns (bytes memory);
 
-    /// @notice Proxy call to a target contract with specified balances and approvals
-    /// @param diffs Balances to check after the call
-    /// @param approvals Approvals to make before the call
-    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
-    /// @param target Target contract to call
-    /// @param data Data to pass to the target contract
-    /// @param withdrawals Withdrawals to make after the call
-    /// @return Result of the call
-    function proxyCallDiffs(
+    /// @notice Proxy call with balance diffs and permits
+    function permitAndProxyCallDiffs(
         Balance[] memory diffs,
         Balance[] memory approvals,
+        PermitData[] memory permits,
         bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         Balance[] memory withdrawals
     ) external payable returns (bytes memory);
 
-    /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
-    /// @param diffs Balances to check after the call
-    /// @param approvals Approvals to make before the call
-    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
-    /// @param target Target contract to call
-    /// @param data Data to pass to the target contract
-    /// @param withdrawals Withdrawals to make after the call
-    /// @return result Result of the call
-    function proxyCallCalldataDiffs(
+    /// @notice Calldata version of proxyCall with balance diffs and permits
+    function permitAndProxyCallCalldataDiffs(
         Balance[] calldata diffs,
         Balance[] calldata approvals,
+        PermitData[] calldata permits,
         bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
         Balance[] calldata withdrawals
     ) external payable returns (bytes memory);
 
-    /// @notice Proxy call to a target contract with specified balances and approvals
-    /// @param diffs Balances to check after the call
-    /// @param approvals Approvals to make before the call
-    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
-    /// @param target Target contract to call
-    /// @param data Data to pass to the target contract
-    /// @param withdrawals Withdrawals to make after the call
-    /// @return Result of the call
-    function proxyCallMetadataDiffs(
+    /// @notice Proxy call with metadata diffs and permits
+    function permitAndProxyCallMetadataDiffs(
         BalanceMetadata[] memory diffs,
         BalanceMetadata[] memory approvals,
+        PermitData[] memory permits,
         bool[] memory useTransferFlags,
         address target,
         bytes memory data,
         BalanceMetadata[] memory withdrawals
     ) external payable returns (bytes memory);
 
-    /// @notice Calldata version of proxy call to a target contract with specified balances and approvals
-    /// @param diffs Balances to check after the call
-    /// @param approvals Approvals to make before the call
-    /// @param target Target contract to call
-    /// @param data Data to pass to the target contract
-    /// @param withdrawals Withdrawals to make after the call
-    /// @return result Result of the call
-    function proxyCallMetadataCalldataDiffs(
+    /// @notice Calldata version of proxyCall with metadata diffs and permits
+    function permitAndProxyCallMetadataCalldataDiffs(
         BalanceMetadata[] calldata diffs,
         BalanceMetadata[] calldata approvals,
+        PermitData[] calldata permits,
         bool[] calldata useTransferFlags,
         address target,
         bytes calldata data,
