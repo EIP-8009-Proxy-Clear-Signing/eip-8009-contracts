@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.27;
 
+/*
+ * solhint: disable mixedCase function name rule for standard constants
+ * Some ERC standards expose functions/variables in SCREAMING_SNAKE_CASE
+ * (for example DOMAIN_SEPARATOR). We intentionally keep the standard
+ * names to match token implementations, so disable the rule for this file.
+ */
+/* solhint-disable func-name-mixedcase */
+
 /**
  * @title IERC20Permit
  * @dev Interface for the ERC20 Permit standard (EIP-2612).

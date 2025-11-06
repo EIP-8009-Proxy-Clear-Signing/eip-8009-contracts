@@ -12,7 +12,6 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 /// @notice Proxy contract for calling contracts with specified balances and approvals
 /// @dev This contract is used to proxy calls to a target contract with specified balances and approvals
 contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
-
     /// @dev Internal function to check if a balance is sufficient
     /// @param balance Balance to check
     function _balanceCheck(Balance memory balance) internal view {
@@ -246,7 +245,10 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
                 permitData.r,
                 permitData.s
             )
-        {} catch {
+        // solhint-disable-next-line no-empty-blocks
+        {
+
+        } catch {
             revert PermitFailed(msg.sender, token);
         }
     }
@@ -280,7 +282,10 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
                 permitData.r,
                 permitData.s
             )
-        {} catch {
+        // solhint-disable-next-line no-empty-blocks
+        {
+
+        } catch {
             revert PermitFailed(msg.sender, token);
         }
     }
@@ -443,8 +448,7 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         // Clear approvals after call to prevent lingering allowances
         for (i = 0; i < approvals.length; i++) {
             if (
-                !useTransferFlags[i] &&
-                approvals[i].balance.token != address(0)
+                !useTransferFlags[i] && approvals[i].balance.token != address(0)
             ) {
                 IERC20(approvals[i].balance.token).approve(target, 0);
             }
@@ -507,8 +511,7 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         // Clear approvals after call to prevent lingering allowances
         for (i = 0; i < approvals.length; i++) {
             if (
-                !useTransferFlags[i] &&
-                approvals[i].balance.token != address(0)
+                !useTransferFlags[i] && approvals[i].balance.token != address(0)
             ) {
                 IERC20(approvals[i].balance.token).approve(target, 0);
             }
@@ -722,8 +725,7 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         // Clear approvals after call to prevent lingering allowances
         for (i = 0; i < approvals.length; i++) {
             if (
-                !useTransferFlags[i] &&
-                approvals[i].balance.token != address(0)
+                !useTransferFlags[i] && approvals[i].balance.token != address(0)
             ) {
                 IERC20(approvals[i].balance.token).approve(target, 0);
             }
@@ -806,8 +808,7 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         // Clear approvals after call to prevent lingering allowances
         for (i = 0; i < approvals.length; i++) {
             if (
-                !useTransferFlags[i] &&
-                approvals[i].balance.token != address(0)
+                !useTransferFlags[i] && approvals[i].balance.token != address(0)
             ) {
                 IERC20(approvals[i].balance.token).approve(target, 0);
             }
