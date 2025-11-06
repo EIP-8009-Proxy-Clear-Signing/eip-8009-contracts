@@ -48,7 +48,7 @@ describe('�️ SECURITY: Malicious Approve Target Protection', function () {
     console.log('\n🚨 ATTACK: Using malicious approve target');
 
     await expect(
-      balanceProxy.write.proxyCall([
+      balanceProxy.write.permitAndProxyCall([
         [],
         [
           {
@@ -57,6 +57,7 @@ describe('�️ SECURITY: Malicious Approve Target Protection', function () {
             balance: STOLEN_AMOUNT,
           },
         ],
+        [], // permits
         [], // useTransferFlags
         victim.account.address,
         '0x',
