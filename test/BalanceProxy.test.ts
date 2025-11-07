@@ -41,13 +41,6 @@ function encodeMint(take: bigint, give: bigint) {
     args: [take, give],
   });
 }
-function encodeMintEth(take: bigint, give: bigint) {
-  return encodeFunctionData({
-    abi: targetAbi,
-    functionName: 'mintEth',
-    args: [take, give],
-  });
-}
 
 async function deployFixture() {
   const [owner, user, other] = await viem.getWalletClients();
