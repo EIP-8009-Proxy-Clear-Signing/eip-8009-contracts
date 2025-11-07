@@ -32,6 +32,18 @@ interface IBalanceProxy {
     error PermitFailed(address owner, address token);
     error InvalidPermitLength(uint256 permitsLength, uint256 approvalsLength);
 
+    /// @notice Error thrown when allowance is insufficient for transferFrom
+    /// @param token Token address
+    /// @param owner Token owner address
+    /// @param required Required allowance amount
+    /// @param actual Actual allowance amount
+    error InsufficientAllowance(
+        address token,
+        address owner,
+        uint256 required,
+        uint256 actual
+    );
+
     /// @notice Struct to represent metadata of a balance
     /// @param target Target address
     /// @param token Token address
@@ -184,5 +196,32 @@ interface IBalanceProxy {
         address target,
         bytes calldata data,
         BalanceMetadata[] calldata withdrawals
+    ) external payable returns (bytes memory);
+
+    /// @notice Proxy call for pre-approved tokens (without permit)
+    /// @param postBalances Balances to check after the call
+    /// @param approvals Approvals to make before the call
+    /// @param useTransferFlags Flags to determine whether to transfer or approve for each approval
+    /// @param target Target contract to call
+    /// @param data Data to pass to the target contract
+    /// @param withdrawals Withdrawals to make after the call
+    /// @return Result of the call
+    function approveAndProxyCall(
+        Balance[] memory postBalances,
+        Balance[] memory approvals,
+        bool[] memory useTransferFlags,
+        address target,
+        bytes memory data,
+        Balance[] memory withdrawals
+    ) external payable returns (bytes memory);
+
+    /// @notice Calldata version of approveAndProxyCall
+    function approveAndProxyCallCalldata(
+        Balance[] calldata postBalances,
+        Balance[] calldata approvals,
+        bool[] calldata useTransferFlags,
+        address target,
+        bytes calldata data,
+        Balance[] calldata withdrawals
     ) external payable returns (bytes memory);
 }

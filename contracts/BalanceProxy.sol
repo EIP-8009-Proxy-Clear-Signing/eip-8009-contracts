@@ -62,10 +62,12 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
             revert MaliciousApproveTarget(balance.token, balance.target);
         }
 
+        uint256 amount = SignedMath.abs(balance.balance);
+
         IERC20(balance.token).transferFrom(
             msg.sender,
             address(this),
-            SignedMath.abs(balance.balance)
+            amount
         );
 
         if (useTransfer) {
@@ -101,10 +103,12 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
             revert MaliciousApproveTarget(balance.token, balance.target);
         }
 
+        uint256 amount = SignedMath.abs(balance.balance);
+
         IERC20(balance.token).transferFrom(
             msg.sender,
             address(this),
-            SignedMath.abs(balance.balance)
+            amount
         );
 
         if (useTransfer) {
@@ -226,8 +230,65 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
             return;
         }
 
-        // Skip permit if deadline is 0 (used when pre-approved via approve())
-        if (permitData.deadline == 0) {
+        if (block.timestamp > permitData.deadline) {
+            revert PermitExpired(permitData.deadline);
+        }
+
+        try
+            IERC20Permit(token).permit(
+                msg.sender,
+                address(this),
+                amount,
+                permitData.deadline,
+                permitData.v,
+                permitData.r,
+                permitData.s
+            )
+        // solhint-disable-next-line no-empty-blocks
+        {
+
+        } catch {
+            revert PermitFailed(msg.sender, token);
+        }
+    }
+
+    /// @dev Internal function to handle pre-approved tokens (without permit)
+    /// @param token Token address
+    /// @param amount Amount to check allowance for
+    /// @dev This function should only be called for tokens that don't support permit
+    function _handlePreApproved(
+        address token,
+        uint256 amount
+    ) internal view {
+        if (token == address(0)) {
+            return;
+        }
+
+        uint256 currentAllowance = IERC20(token).allowance(
+            msg.sender,
+            address(this)
+        );
+        
+        if (currentAllowance < amount) {
+            revert InsufficientAllowance(
+                token,
+                msg.sender,
+                amount,
+                currentAllowance
+            );
+        }
+    }
+
+    /// @dev Calldata version of internal function to handle permit
+    /// @param token Token address
+    /// @param amount Amount to permit
+    /// @param permitData Permit signature data
+    function _handlePermitCalldata(
+        address token,
+        uint256 amount,
+        PermitData calldata permitData
+    ) internal {
+        if (token == address(0)) {
             return;
         }
 
@@ -253,40 +314,31 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         }
     }
 
-    /// @dev Calldata version of internal function to handle permit
-    function _handlePermitCalldata(
+    /// @dev Calldata version of internal function to handle pre-approved tokens
+    /// @param token Token address
+    /// @param amount Amount to check allowance for
+    /// @dev This function should only be called for tokens that don't support permit
+    function _handlePreApprovedCalldata(
         address token,
-        uint256 amount,
-        PermitData calldata permitData
-    ) internal {
+        uint256 amount
+    ) internal view {
         if (token == address(0)) {
-            return; // ETH doesn't need permit
-        }
-
-        // Skip permit if deadline is 0 (used when pre-approved via approve())
-        if (permitData.deadline == 0) {
             return;
         }
 
-        if (block.timestamp > permitData.deadline) {
-            revert PermitExpired(permitData.deadline);
-        }
-
-        try
-            IERC20Permit(token).permit(
+        // Verify that user has already approved the required amount
+        uint256 currentAllowance = IERC20(token).allowance(
+            msg.sender,
+            address(this)
+        );
+        
+        if (currentAllowance < amount) {
+            revert InsufficientAllowance(
+                token,
                 msg.sender,
-                address(this),
                 amount,
-                permitData.deadline,
-                permitData.v,
-                permitData.r,
-                permitData.s
-            )
-        // solhint-disable-next-line no-empty-blocks
-        {
-
-        } catch {
-            revert PermitFailed(msg.sender, token);
+                currentAllowance
+            );
         }
     }
 
@@ -326,13 +378,6 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         );
         if (!success) {
             revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (!useTransferFlags[i] && approvals[i].token != address(0)) {
-                IERC20(approvals[i].token).approve(target, 0);
-            }
         }
 
         for (i = 0; i < withdrawals.length; i++) {
@@ -386,13 +431,6 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
             revert CallFailed(target, data, result);
         }
 
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (!useTransferFlags[i] && approvals[i].token != address(0)) {
-                IERC20(approvals[i].token).approve(target, 0);
-            }
-        }
-
         for (i = 0; i < withdrawals.length; i++) {
             _transferCalldata(withdrawals[i]);
         }
@@ -443,15 +481,6 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         );
         if (!success) {
             revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (
-                !useTransferFlags[i] && approvals[i].balance.token != address(0)
-            ) {
-                IERC20(approvals[i].balance.token).approve(target, 0);
-            }
         }
 
         for (i = 0; i < withdrawals.length; i++) {
@@ -508,15 +537,6 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
             revert CallFailed(target, data, result);
         }
 
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (
-                !useTransferFlags[i] && approvals[i].balance.token != address(0)
-            ) {
-                IERC20(approvals[i].balance.token).approve(target, 0);
-            }
-        }
-
         for (i = 0; i < withdrawals.length; i++) {
             _checkMetadataCalldata(withdrawals[i]);
             _transferCalldata(withdrawals[i].balance);
@@ -570,13 +590,6 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         );
         if (!success) {
             revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (!useTransferFlags[i] && approvals[i].token != address(0)) {
-                IERC20(approvals[i].token).approve(target, 0);
-            }
         }
 
         for (i = 0; i < withdrawals.length; i++) {
@@ -643,13 +656,6 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         );
         if (!success) {
             revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (!useTransferFlags[i] && approvals[i].token != address(0)) {
-                IERC20(approvals[i].token).approve(target, 0);
-            }
         }
 
         for (i = 0; i < withdrawals.length; i++) {
@@ -720,15 +726,6 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         );
         if (!success) {
             revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (
-                !useTransferFlags[i] && approvals[i].balance.token != address(0)
-            ) {
-                IERC20(approvals[i].balance.token).approve(target, 0);
-            }
         }
 
         for (i = 0; i < withdrawals.length; i++) {
@@ -805,15 +802,6 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
             revert CallFailed(target, data, result);
         }
 
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (
-                !useTransferFlags[i] && approvals[i].balance.token != address(0)
-            ) {
-                IERC20(approvals[i].balance.token).approve(target, 0);
-            }
-        }
-
         for (i = 0; i < withdrawals.length; i++) {
             _checkMetadataCalldata(withdrawals[i]);
             _transferCalldata(withdrawals[i].balance);
@@ -835,6 +823,94 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
                     actualDiff
                 );
             }
+        }
+
+        return result;
+    }
+
+    /// @inheritdoc IBalanceProxy
+    function approveAndProxyCall(
+        Balance[] memory postBalances,
+        Balance[] memory approvals,
+        bool[] memory useTransferFlags,
+        address target,
+        bytes memory data,
+        Balance[] memory withdrawals
+    ) external payable nonReentrant returns (bytes memory) {
+        if (useTransferFlags.length != approvals.length) {
+            revert InvalidTransferFlagsLength(
+                useTransferFlags.length,
+                approvals.length
+            );
+        }
+
+        uint256 i;
+        for (i = 0; i < approvals.length; i++) {
+            _handlePreApproved(
+                approvals[i].token,
+                SignedMath.abs(approvals[i].balance)
+            );
+            _transferAndApprove(approvals[i], target, useTransferFlags[i]);
+        }
+
+        (bool success, bytes memory result) = target.call{value: msg.value}(
+            data
+        );
+        if (!success) {
+            revert CallFailed(target, data, result);
+        }
+
+        for (i = 0; i < withdrawals.length; i++) {
+            _transfer(withdrawals[i]);
+        }
+        for (i = 0; i < postBalances.length; i++) {
+            _balanceCheck(postBalances[i]);
+        }
+
+        return result;
+    }
+
+    /// @inheritdoc IBalanceProxy
+    function approveAndProxyCallCalldata(
+        Balance[] calldata postBalances,
+        Balance[] calldata approvals,
+        bool[] calldata useTransferFlags,
+        address target,
+        bytes calldata data,
+        Balance[] calldata withdrawals
+    ) external payable nonReentrant returns (bytes memory) {
+        if (useTransferFlags.length != approvals.length) {
+            revert InvalidTransferFlagsLength(
+                useTransferFlags.length,
+                approvals.length
+            );
+        }
+
+        uint256 i;
+        for (i = 0; i < approvals.length; i++) {
+            _handlePreApprovedCalldata(
+                approvals[i].token,
+                SignedMath.abs(approvals[i].balance)
+            );
+            _transferAndApproveCalldata(
+                approvals[i],
+                target,
+                useTransferFlags[i]
+            );
+        }
+
+        (bool success, bytes memory result) = target.call{value: msg.value}(
+            data
+        );
+        if (!success) {
+            revert CallFailed(target, data, result);
+        }
+
+        for (i = 0; i < withdrawals.length; i++) {
+            _transferCalldata(withdrawals[i]);
+        }
+        for (i = 0; i < postBalances.length; i++) {
+            _balanceCheckCalldata(postBalances[i]);
         }
 
         return result;
