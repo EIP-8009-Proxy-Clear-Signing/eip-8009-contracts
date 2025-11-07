@@ -43,10 +43,14 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
     }
 
     /// @dev Internal function to apply approval instruction (memory)
-    function _applyApproval(Approval memory approval, address callTarget) internal {
+    function _applyApproval(
+        Approval memory approval,
+        address callTarget
+    ) internal {
         Balance memory bal = approval.balance;
         // Guard: approval must be for the same target we are about to call
-        if (bal.target != callTarget) revert MaliciousApproveTarget(bal.token, bal.target);
+        if (bal.target != callTarget)
+            revert MaliciousApproveTarget(bal.token, bal.target);
         // Guard: amount must be non-negative (Approval uses uint when executing)
         if (bal.balance < 0) revert NegativeApprovalAmount(bal.balance);
         uint256 amount = uint256(int256(bal.balance));
@@ -70,7 +74,10 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         }
     }
 
-    function _currentBalance(address token, address who) internal view returns (uint256) {
+    function _currentBalance(
+        address token,
+        address who
+    ) internal view returns (uint256) {
         return token == address(0) ? who.balance : IERC20(token).balanceOf(who);
     }
 
@@ -80,12 +87,14 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         address target,
         bytes memory data,
         Balance[] memory withdrawals
-    ) external payable nonReentrant override returns (bytes memory) {
+    ) external payable override nonReentrant returns (bytes memory) {
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
             _applyApproval(approvals[i], target);
         }
-        (bool success, bytes memory result) = target.call{value: msg.value}(data);
+        (bool success, bytes memory result) = target.call{value: msg.value}(
+            data
+        );
         if (!success) revert CallFailed(target, data, result);
         for (i = 0; i < withdrawals.length; i++) {
             _transfer(withdrawals[i]);
@@ -103,22 +112,32 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         address target,
         bytes memory data,
         Balance[] memory withdrawals
-    ) external payable nonReentrant override returns (bytes memory) {
+    ) external payable override nonReentrant returns (bytes memory) {
         uint256 i;
         uint256 len = diffs.length;
         uint256[] memory before = new uint256[](len);
-        for (i = 0; i < len; i++) before[i] = _currentBalance(diffs[i].token, diffs[i].target);
-        for (i = 0; i < approvals.length; i++) _applyApproval(approvals[i], target);
-        (bool success, bytes memory result) = target.call{value: msg.value}(data);
+        for (i = 0; i < len; i++)
+            before[i] = _currentBalance(diffs[i].token, diffs[i].target);
+        for (i = 0; i < approvals.length; i++)
+            _applyApproval(approvals[i], target);
+        (bool success, bytes memory result) = target.call{value: msg.value}(
+            data
+        );
         if (!success) revert CallFailed(target, data, result);
         for (i = 0; i < withdrawals.length; i++) _transfer(withdrawals[i]);
         for (i = 0; i < len; i++) {
             uint256 afterBal = _currentBalance(diffs[i].token, diffs[i].target);
             int256 actualDiff = int256(afterBal) - int256(before[i]);
-            if (actualDiff < diffs[i].balance) revert UnexpectedBalanceDiff(diffs[i].token, diffs[i].target, diffs[i].balance, actualDiff);
+            if (actualDiff < diffs[i].balance)
+                revert UnexpectedBalanceDiff(
+                    diffs[i].token,
+                    diffs[i].target,
+                    diffs[i].balance,
+                    actualDiff
+                );
         }
         return result;
     }
-    
+
     receive() external payable {}
 }

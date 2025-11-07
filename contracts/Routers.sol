@@ -10,7 +10,6 @@ import {IERC20Permit, PermitData} from "./interfaces/IPermit.sol";
 /// @title PermitRouter
 /// @notice Handles permit + pull tokens then delegates to BalanceProxy core
 contract PermitRouter is IPermitRouter {
-
     /// @notice Execute proxyCall with permits
     function permitProxyCall(
         IBalanceProxy balanceProxy,
@@ -36,9 +35,20 @@ contract PermitRouter is IPermitRouter {
                 p.r,
                 p.s
             );
-            IERC20(bal.token).transferFrom(msg.sender, address(balanceProxy), amount);
+            IERC20(bal.token).transferFrom(
+                msg.sender,
+                address(balanceProxy),
+                amount
+            );
         }
-        return balanceProxy.proxyCall{value: msg.value}(postBalances, approvals, target, data, withdrawals);
+        return
+            balanceProxy.proxyCall{value: msg.value}(
+                postBalances,
+                approvals,
+                target,
+                data,
+                withdrawals
+            );
     }
 
     /// @notice proxyCallDiffs with permits
@@ -66,9 +76,20 @@ contract PermitRouter is IPermitRouter {
                 p.r,
                 p.s
             );
-            IERC20(bal.token).transferFrom(msg.sender, address(balanceProxy), amount);
+            IERC20(bal.token).transferFrom(
+                msg.sender,
+                address(balanceProxy),
+                amount
+            );
         }
-        return balanceProxy.proxyCallDiffs{value: msg.value}(diffs, approvals, target, data, withdrawals);
+        return
+            balanceProxy.proxyCallDiffs{value: msg.value}(
+                diffs,
+                approvals,
+                target,
+                data,
+                withdrawals
+            );
     }
 }
 
@@ -87,9 +108,20 @@ contract ApproveRouter is IApproveRouter {
         for (uint256 i = 0; i < approvals.length; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
-            IERC20(bal.token).transferFrom(msg.sender, address(balanceProxy), amount);
+            IERC20(bal.token).transferFrom(
+                msg.sender,
+                address(balanceProxy),
+                amount
+            );
         }
-        return balanceProxy.proxyCall{value: msg.value}(postBalances, approvals, target, data, withdrawals);
+        return
+            balanceProxy.proxyCall{value: msg.value}(
+                postBalances,
+                approvals,
+                target,
+                data,
+                withdrawals
+            );
     }
 
     /// @notice proxyCallDiffs with pre-approved tokens
@@ -104,8 +136,19 @@ contract ApproveRouter is IApproveRouter {
         for (uint256 i = 0; i < approvals.length; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
-            IERC20(bal.token).transferFrom(msg.sender, address(balanceProxy), amount);
+            IERC20(bal.token).transferFrom(
+                msg.sender,
+                address(balanceProxy),
+                amount
+            );
         }
-        return balanceProxy.proxyCallDiffs{value: msg.value}(diffs, approvals, target, data, withdrawals);
+        return
+            balanceProxy.proxyCallDiffs{value: msg.value}(
+                diffs,
+                approvals,
+                target,
+                data,
+                withdrawals
+            );
     }
 }

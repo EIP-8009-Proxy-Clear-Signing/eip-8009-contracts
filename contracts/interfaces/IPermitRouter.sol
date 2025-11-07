@@ -7,7 +7,6 @@ import {PermitData} from "./IPermit.sol";
 /// @title IPermitRouter
 /// @notice Interface for router that uses EIP-2612 permits to pull tokens then calls BalanceProxy
 interface IPermitRouter {
-    
     /// @notice Execute proxyCall with permits
     function permitProxyCall(
         IBalanceProxy balanceProxy,
