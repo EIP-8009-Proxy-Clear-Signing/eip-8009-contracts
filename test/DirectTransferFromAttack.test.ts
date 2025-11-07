@@ -25,11 +25,26 @@ describe('✅ BalanceProxy: Token Transfer Integration', function () {
       },
     );
 
-    return { owner, user, balanceProxy, token, targetContract };
+    const approveRouter = await viem.deployContract('ApproveRouter', [], {
+      client: { wallet: owner },
+    });
+    const permitRouter = await viem.deployContract('PermitRouter', [], {
+      client: { wallet: owner },
+    });
+
+    return {
+      owner,
+      user,
+      balanceProxy,
+      token,
+      targetContract,
+      approveRouter,
+      permitRouter,
+    };
   }
 
-  it('✅ Should work with useTransferFlags=false (approve mode)', async function () {
-    const { user, balanceProxy, token, targetContract } =
+  it('✅ Should work with useTransfer=false (approve mode)', async function () {
+    const { user, balanceProxy, token, targetContract, approveRouter } =
       await loadFixture(deployFixture);
 
     const AMOUNT = parseEther('100');
@@ -37,31 +52,29 @@ describe('✅ BalanceProxy: Token Transfer Integration', function () {
     // Mint tokens to user
     await token.write.mint([user.account.address, AMOUNT]);
 
-    // Pre-approve for this test (user approves proxy to spend tokens)
-    await token.write.approve([balanceProxy.address, AMOUNT], {
+    await token.write.approve([approveRouter.address, AMOUNT], {
       account: user.account,
     });
 
-    // Call with useTransferFlags=false (approve mode)
-    // In approve mode: proxy takes tokens from user, then approves target to spend them
-    await balanceProxy.write.approveAndProxyCall(
+    await approveRouter.write.approveProxyCall(
       [
-        [], // postBalances
+        balanceProxy.address,
+        [],
         [
           {
-            token: token.address,
-            target: targetContract.address,
-            balance: AMOUNT,
+            balance: {
+              token: token.address,
+              target: targetContract.address,
+              balance: AMOUNT,
+            },
+            useTransfer: false,
           },
-        ], // approvals
-        [false], // useTransferFlags = false (approve mode)
-        targetContract.address, // target address
-        '0x', // empty calldata - just setup approval
-        [], // withdrawals
+        ],
+        targetContract.address,
+        '0x',
+        [],
       ],
-      {
-        account: user.account,
-      },
+      { account: user.account },
     );
 
     // Check: proxy should have the tokens (pulled from user), and approval should be cleared
@@ -80,8 +93,8 @@ describe('✅ BalanceProxy: Token Transfer Integration', function () {
     expect(allowance).to.equal(AMOUNT); // Approval set for target
   });
 
-  it('✅ Should work with useTransferFlags=true (transfer mode)', async function () {
-    const { user, balanceProxy, token, targetContract } =
+  it('✅ Should work with useTransfer=true (transfer mode)', async function () {
+    const { user, balanceProxy, token, targetContract, approveRouter } =
       await loadFixture(deployFixture);
 
     const AMOUNT = parseEther('100');
@@ -89,31 +102,28 @@ describe('✅ BalanceProxy: Token Transfer Integration', function () {
     // Mint tokens to user
     await token.write.mint([user.account.address, AMOUNT]);
 
-    // Pre-approve for this test
-    await token.write.approve([balanceProxy.address, AMOUNT], {
+    await token.write.approve([approveRouter.address, AMOUNT], {
       account: user.account,
     });
-
-    // Call with useTransferFlags=true (transfer mode)
-    // In transfer mode: proxy transfers tokens directly to target
-    await balanceProxy.write.approveAndProxyCall(
+    await approveRouter.write.approveProxyCall(
       [
-        [], // postBalances
+        balanceProxy.address,
+        [],
         [
           {
-            token: token.address,
-            target: targetContract.address,
-            balance: AMOUNT,
+            balance: {
+              token: token.address,
+              target: targetContract.address,
+              balance: AMOUNT,
+            },
+            useTransfer: true,
           },
-        ], // approvals
-        [true], // useTransferFlags = true (transfer mode)
-        targetContract.address, // target address
-        '0x', // empty calldata - just transfer tokens
-        [], // withdrawals
+        ],
+        targetContract.address,
+        '0x',
+        [],
       ],
-      {
-        account: user.account,
-      },
+      { account: user.account },
     );
 
     // Check that tokens were transferred directly to target
@@ -125,8 +135,8 @@ describe('✅ BalanceProxy: Token Transfer Integration', function () {
     expect(userBalance).to.equal(0n);
   });
 
-  it('✅ Should work with permitAndProxyCall and useTransferFlags=false (approve mode with permit)', async function () {
-    const { user, balanceProxy, token, targetContract } =
+  it('✅ Should work with permitProxyCall and useTransfer=false (approve mode with permit)', async function () {
+    const { user, balanceProxy, token, targetContract, permitRouter } =
       await loadFixture(deployFixture);
 
     const AMOUNT = parseEther('100');
@@ -158,7 +168,7 @@ describe('✅ BalanceProxy: Token Transfer Integration', function () {
 
     const message = {
       owner: user.account.address,
-      spender: balanceProxy.address,
+      spender: permitRouter.address,
       value: AMOUNT,
       nonce,
       deadline,
@@ -176,33 +186,26 @@ describe('✅ BalanceProxy: Token Transfer Integration', function () {
     const s = `0x${signature.slice(66, 130)}` as `0x${string}`;
     const v = parseInt(signature.slice(130, 132), 16);
 
-    // Call with permitAndProxyCall using real permit signature
-    await balanceProxy.write.permitAndProxyCall(
+    await permitRouter.write.permitProxyCall(
       [
-        [], // postBalances
+        balanceProxy.address,
+        [],
         [
           {
-            token: token.address,
-            target: targetContract.address,
-            balance: AMOUNT,
+            balance: {
+              token: token.address,
+              target: targetContract.address,
+              balance: AMOUNT,
+            },
+            useTransfer: false,
           },
-        ], // approvals
-        [
-          {
-            deadline,
-            v,
-            r,
-            s,
-          },
-        ], // permits with real signature
-        [false], // useTransferFlags = false (approve mode)
-        targetContract.address, // target address
-        '0x', // empty calldata
-        [], // withdrawals
+        ],
+        [{ deadline, v, r, s }],
+        targetContract.address,
+        '0x',
+        [],
       ],
-      {
-        account: user.account,
-      },
+      { account: user.account },
     );
 
     // Check: proxy should have the tokens
@@ -221,8 +224,8 @@ describe('✅ BalanceProxy: Token Transfer Integration', function () {
     expect(allowance).to.equal(AMOUNT);
   });
 
-  it('✅ Should work with permitAndProxyCall and useTransferFlags=true (transfer mode with permit)', async function () {
-    const { user, balanceProxy, token, targetContract } =
+  it('✅ Should work with permitProxyCall and useTransfer=true (transfer mode with permit)', async function () {
+    const { user, balanceProxy, token, targetContract, permitRouter } =
       await loadFixture(deployFixture);
 
     const AMOUNT = parseEther('100');
@@ -253,7 +256,7 @@ describe('✅ BalanceProxy: Token Transfer Integration', function () {
 
     const message = {
       owner: user.account.address,
-      spender: balanceProxy.address,
+      spender: permitRouter.address,
       value: AMOUNT,
       nonce,
       deadline,
@@ -270,33 +273,26 @@ describe('✅ BalanceProxy: Token Transfer Integration', function () {
     const s = `0x${signature.slice(66, 130)}` as `0x${string}`;
     const v = parseInt(signature.slice(130, 132), 16);
 
-    // Call with permitAndProxyCall using real permit signature
-    await balanceProxy.write.permitAndProxyCall(
+    await permitRouter.write.permitProxyCall(
       [
-        [], // postBalances
+        balanceProxy.address,
+        [],
         [
           {
-            token: token.address,
-            target: targetContract.address,
-            balance: AMOUNT,
+            balance: {
+              token: token.address,
+              target: targetContract.address,
+              balance: AMOUNT,
+            },
+            useTransfer: true,
           },
-        ], // approvals
-        [
-          {
-            deadline,
-            v,
-            r,
-            s,
-          },
-        ], // permits with real signature
-        [true], // useTransferFlags = true (transfer mode)
-        targetContract.address, // target address
-        '0x', // empty calldata
-        [], // withdrawals
+        ],
+        [{ deadline, v, r, s }],
+        targetContract.address,
+        '0x',
+        [],
       ],
-      {
-        account: user.account,
-      },
+      { account: user.account },
     );
 
     // Check that tokens were transferred directly to target
