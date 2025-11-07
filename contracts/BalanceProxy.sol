@@ -827,7 +827,7 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
 
         return result;
     }
-
+    
     /// @inheritdoc IBalanceProxy
     function approveAndProxyCall(
         Balance[] memory postBalances,
@@ -837,12 +837,7 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         bytes memory data,
         Balance[] memory withdrawals
     ) external payable nonReentrant returns (bytes memory) {
-        if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(
-                useTransferFlags.length,
-                approvals.length
-            );
-        }
+
 
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
@@ -879,12 +874,6 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         bytes calldata data,
         Balance[] calldata withdrawals
     ) external payable nonReentrant returns (bytes memory) {
-        if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(
-                useTransferFlags.length,
-                approvals.length
-            );
-        }
 
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
