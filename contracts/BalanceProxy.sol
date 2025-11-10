@@ -53,7 +53,7 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
             revert MaliciousApproveTarget(bal.token, bal.target);
         // Guard: amount must be non-negative (Approval uses uint when executing)
         if (bal.balance < 0) revert NegativeApprovalAmount(bal.balance);
-        uint256 amount = uint256(int256(bal.balance));
+        uint256 amount = uint256(bal.balance);
         if (approval.useTransfer) {
             IERC20(bal.token).transfer(bal.target, amount);
         } else {
@@ -99,8 +99,7 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         for (i = 0; i < withdrawals.length; i++) {
             _transfer(withdrawals[i]);
         }
-        uint256 postLen = postBalances.length;
-        for (i = 0; i < postLen; i++) {
+        for (i = 0; i < postBalances.length; i++) {
             _balanceCheck(postBalances[i]);
         }
         return result;
