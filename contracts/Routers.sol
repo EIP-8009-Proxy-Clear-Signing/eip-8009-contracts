@@ -21,7 +21,7 @@ contract PermitRouter is IPermitRouter {
         IBalanceProxy.Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
         uint256 len = approvals.length;
-        require(permits.length == len);
+        if (permits.length != len) revert PermitsLengthMismatch(permits.length, len);
         for (uint256 i = 0; i < len; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
@@ -62,7 +62,7 @@ contract PermitRouter is IPermitRouter {
         IBalanceProxy.Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
         uint256 len = approvals.length;
-        require(permits.length == len);
+        if (permits.length != len) revert PermitsLengthMismatch(permits.length, len);
         for (uint256 i = 0; i < len; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);

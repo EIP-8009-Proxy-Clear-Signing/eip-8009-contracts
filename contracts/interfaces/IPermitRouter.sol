@@ -7,6 +7,11 @@ import {PermitData} from "./IPermit.sol";
 /// @title IPermitRouter
 /// @notice Interface for router that uses EIP-2612 permits to pull tokens then calls BalanceProxy
 interface IPermitRouter {
+    /// @notice Error thrown when permits array length doesn't match approvals array length
+    /// @param permitsLength The length of the permits array
+    /// @param approvalsLength The length of the approvals array
+    error PermitsLengthMismatch(uint256 permitsLength, uint256 approvalsLength);
+
     /// @notice Execute proxyCall with permits
     function permitProxyCall(
         IBalanceProxy balanceProxy,
