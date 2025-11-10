@@ -960,5 +960,33 @@ describe('BalanceProxy + Routers (updated API)', function () {
         ),
       ).to.be.rejectedWith('CallFailed');
     });
+
+    it('reverts on reentrancy in proxyCallDiffs (nonReentrant guard)', async () => {
+      const { owner, user, balanceProxy } = await loadFixture(deployFixture);
+      const reenter = await viem.deployContract(
+        'ReenterDiffsTargetMock',
+        [balanceProxy.address],
+        {
+          client: { wallet: owner },
+        },
+      );
+      const attackData = encodeFunctionData({
+        abi: reenterAbi,
+        functionName: 'attack',
+        args: [],
+      });
+      await expect(
+        balanceProxy.write.proxyCallDiffs(
+          [
+            [], // diffs
+            [], // approvals
+            reenter.address,
+            attackData,
+            [],
+          ],
+          { account: user.account },
+        ),
+      ).to.be.rejectedWith('CallFailed');
+    });
   });
 });
