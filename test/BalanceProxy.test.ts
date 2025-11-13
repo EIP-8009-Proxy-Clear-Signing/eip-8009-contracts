@@ -692,6 +692,99 @@ describe('BalanceProxy + Routers (updated API)', function () {
     });
   });
 
+  describe('ApproveRouter WithMeta', () => {
+    it('approveProxyCallWithMeta: pulls tokens and sets allowance (meta ignored)', async () => {
+      const { user, token, target, balanceProxy, approveRouter } =
+        await loadFixture(deployFixture);
+      const AMOUNT = parseEther('33');
+      await token.write.mint([user.account.address, AMOUNT]);
+      await token.write.approve([approveRouter.address, AMOUNT], {
+        account: user.account,
+      });
+
+      const meta = [
+        {
+          token: token.address,
+          symbol: 'MTK',
+          decimals: 18,
+        },
+      ];
+
+      await approveRouter.write.approveProxyCallWithMeta(
+        [
+          balanceProxy.address,
+          meta,
+          [], // postBalances
+          [
+            {
+              balance: {
+                target: target.address,
+                token: token.address,
+                balance: AMOUNT,
+              },
+              useTransfer: false,
+            },
+          ],
+          target.address,
+          encodeMint(0n, 0n),
+          [],
+        ],
+        { account: user.account },
+      );
+
+      const proxyBal = await token.read.balanceOf([balanceProxy.address]);
+      expect(proxyBal).to.equal(AMOUNT);
+      const allowance = await token.read.allowance([
+        balanceProxy.address,
+        target.address,
+      ]);
+      expect(allowance).to.equal(AMOUNT);
+    });
+
+    it('approveProxyCallDiffsWithMeta: transfer mode sends tokens to EOA target', async () => {
+      const { user, token, other, balanceProxy, approveRouter } =
+        await loadFixture(deployFixture);
+      const AMOUNT = parseEther('21');
+      await token.write.mint([user.account.address, AMOUNT]);
+      await token.write.approve([approveRouter.address, AMOUNT], {
+        account: user.account,
+      });
+
+      const meta = [
+        {
+          token: token.address,
+          symbol: 'MTK',
+          decimals: 18,
+        },
+      ];
+
+      await approveRouter.write.approveProxyCallDiffsWithMeta(
+        [
+          balanceProxy.address,
+          meta,
+          [], // diffs (none expected)
+          [
+            {
+              balance: {
+                target: other.account.address,
+                token: token.address,
+                balance: AMOUNT,
+              },
+              useTransfer: true,
+            },
+          ],
+          other.account.address, // EOA target, empty data succeeds
+          '0x',
+          [],
+        ],
+        { account: user.account },
+      );
+
+      const targetBal = await token.read.balanceOf([other.account.address]);
+      expect(targetBal).to.equal(AMOUNT);
+    });
+  });
+
   describe('withdrawals loop executes (direct proxyCall)', () => {
     it('sends ETH via withdrawals and reduces proxy balance', async () => {
       const { owner, user, other, balanceProxy } =
@@ -790,6 +883,260 @@ describe('BalanceProxy + Routers (updated API)', function () {
       });
       expect(beforeProxy - afterProxy).to.equal(3n);
       expect(afterOther - beforeOther).to.equal(3n);
+    });
+  });
+
+  describe('PermitRouter WithMeta', () => {
+    // Local helper duplicating buildPermit to keep scope self-contained
+    type PermitToken = {
+      address: `0x${string}`;
+      read: {
+        name: () => Promise<string>;
+        nonces: (args: [`0x${string}`]) => Promise<bigint>;
+      };
+    };
+    type TestWallet = {
+      account: { address: `0x${string}` };
+      getChainId: () => Promise<number>;
+      signTypedData: (args: {
+        domain: {
+          name: string;
+          version: string;
+          chainId: number;
+          verifyingContract: `0x${string}`;
+        };
+        types: {
+          Permit: Array<{ name: string; type: string }>;
+        };
+        primaryType: 'Permit';
+        message: {
+          owner: `0x${string}`;
+          spender: `0x${string}`;
+          value: bigint;
+          nonce: bigint;
+          deadline: bigint;
+        };
+      }) => Promise<`0x${string}`>;
+    };
+    async function buildPermit(
+      user: TestWallet,
+      token: PermitToken,
+      spender: `0x${string}`,
+      value: bigint,
+    ) {
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+      const nonce = await token.read.nonces([user.account.address]);
+      const domain = {
+        name: await token.read.name(),
+        version: '1',
+        chainId: await user.getChainId(),
+        verifyingContract: token.address,
+      };
+      const types = {
+        Permit: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      };
+      const message = {
+        owner: user.account.address,
+        spender,
+        value,
+        nonce,
+        deadline,
+      };
+      const signature = await user.signTypedData({
+        domain,
+        types,
+        primaryType: 'Permit',
+        message,
+      });
+      const r = `0x${signature.slice(2, 66)}` as `0x${string}`;
+      const s = `0x${signature.slice(66, 130)}` as `0x${string}`;
+      const v = parseInt(signature.slice(130, 132), 16);
+      return { deadline, v, r, s };
+    }
+
+    it('permitProxyCallWithMeta: pulls tokens and sets allowance (meta ignored)', async () => {
+      const { user, token, target, balanceProxy, permitRouter } =
+        await loadFixture(deployFixture);
+      const AMOUNT = parseEther('19');
+      await token.write.mint([user.account.address, AMOUNT]);
+      const permit = await buildPermit(
+        user as unknown as TestWallet,
+        token as unknown as PermitToken,
+        permitRouter.address,
+        AMOUNT,
+      );
+
+      const meta = [
+        {
+          token: token.address,
+          symbol: 'MTK',
+          decimals: 18,
+        },
+      ];
+
+      await permitRouter.write.permitProxyCallWithMeta(
+        [
+          balanceProxy.address,
+          meta,
+          [],
+          [
+            {
+              balance: {
+                target: target.address,
+                token: token.address,
+                balance: AMOUNT,
+              },
+              useTransfer: false,
+            },
+          ],
+          [permit],
+          target.address,
+          '0x',
+          [],
+        ],
+        { account: user.account },
+      );
+
+      const proxyBal = await token.read.balanceOf([balanceProxy.address]);
+      expect(proxyBal).to.equal(AMOUNT);
+      const allowance = await token.read.allowance([
+        balanceProxy.address,
+        target.address,
+      ]);
+      expect(allowance).to.equal(AMOUNT);
+    });
+
+    it('permitProxyCallDiffsWithMeta: transfer mode sends tokens to EOA target', async () => {
+      const { user, token, other, balanceProxy, permitRouter } =
+        await loadFixture(deployFixture);
+      const AMOUNT = parseEther('13');
+      await token.write.mint([user.account.address, AMOUNT]);
+      const permit = await buildPermit(
+        user as unknown as TestWallet,
+        token as unknown as PermitToken,
+        permitRouter.address,
+        AMOUNT,
+      );
+
+      const meta = [
+        {
+          token: token.address,
+          symbol: 'MTK',
+          decimals: 18,
+        },
+      ];
+
+      await permitRouter.write.permitProxyCallDiffsWithMeta(
+        [
+          balanceProxy.address,
+          meta,
+          [], // diffs
+          [
+            {
+              balance: {
+                target: other.account.address,
+                token: token.address,
+                balance: AMOUNT,
+              },
+              useTransfer: true,
+            },
+          ],
+          [permit],
+          other.account.address,
+          '0x',
+          [],
+        ],
+        { account: user.account },
+      );
+
+      const targetBal = await token.read.balanceOf([other.account.address]);
+      expect(targetBal).to.equal(AMOUNT);
+    });
+
+    it('permitProxyCallWithMeta: reverts on PermitsLengthMismatch', async () => {
+      const { user, token, target, balanceProxy, permitRouter } =
+        await loadFixture(deployFixture);
+      const AMOUNT = parseEther('7');
+      await token.write.mint([user.account.address, AMOUNT]);
+
+      const meta = [
+        {
+          token: token.address,
+          symbol: 'MTK',
+          decimals: 18,
+        },
+      ];
+
+      await expect(
+        permitRouter.write.permitProxyCallWithMeta(
+          [
+            balanceProxy.address,
+            meta,
+            [],
+            [
+              {
+                balance: {
+                  target: target.address,
+                  token: token.address,
+                  balance: AMOUNT,
+                },
+                useTransfer: false,
+              },
+            ],
+            [], // permits empty => mismatch
+            target.address,
+            '0x',
+            [],
+          ],
+          { account: user.account },
+        ),
+      ).to.be.rejectedWith('PermitsLengthMismatch');
+    });
+
+    it('permitProxyCallDiffsWithMeta: reverts on PermitsLengthMismatch', async () => {
+      const { user, token, other, balanceProxy, permitRouter } =
+        await loadFixture(deployFixture);
+      const AMOUNT = parseEther('5');
+      await token.write.mint([user.account.address, AMOUNT]);
+
+      const meta = [
+        {
+          token: token.address,
+          symbol: 'MTK',
+          decimals: 18,
+        },
+      ];
+
+      await expect(
+        permitRouter.write.permitProxyCallDiffsWithMeta(
+          [
+            balanceProxy.address,
+            meta,
+            [], // diffs
+            [
+              {
+                balance: {
+                  target: other.account.address,
+                  token: token.address,
+                  balance: AMOUNT,
+                },
+                useTransfer: true,
+              },
+            ],
+            [], // permits empty => mismatch
+            other.account.address,
+            '0x',
+            [],
+          ],
+          { account: user.account },
+        ),
+      ).to.be.rejectedWith('PermitsLengthMismatch');
     });
   });
 

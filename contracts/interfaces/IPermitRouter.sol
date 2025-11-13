@@ -3,6 +3,7 @@ pragma solidity ^0.8.27;
 
 import {IBalanceProxy} from "./IBalanceProxy.sol";
 import {PermitData} from "./IPermit.sol";
+import {BalanceMetadata} from "./IMetadata.sol";
 
 /// @title IPermitRouter
 /// @notice Interface for router that uses EIP-2612 permits to pull tokens then calls BalanceProxy
@@ -23,9 +24,33 @@ interface IPermitRouter {
         IBalanceProxy.Balance[] memory withdrawals
     ) external payable returns (bytes memory);
 
+    /// @notice Execute proxyCall with permits and calldata metadata as the first arg
+    function permitProxyCallWithMeta(
+        IBalanceProxy balanceProxy,
+        BalanceMetadata[] memory meta,
+        IBalanceProxy.Balance[] memory postBalances,
+        IBalanceProxy.Approval[] memory approvals,
+        PermitData[] memory permits,
+        address target,
+        bytes memory data,
+        IBalanceProxy.Balance[] memory withdrawals
+    ) external payable returns (bytes memory);
+
     /// @notice Execute proxyCallDiffs with permits
     function permitProxyCallDiffs(
         IBalanceProxy balanceProxy,
+        IBalanceProxy.Balance[] memory diffs,
+        IBalanceProxy.Approval[] memory approvals,
+        PermitData[] memory permits,
+        address target,
+        bytes memory data,
+        IBalanceProxy.Balance[] memory withdrawals
+    ) external payable returns (bytes memory);
+
+    /// @notice Execute proxyCallDiffs with permits and calldata metadata as the first arg
+    function permitProxyCallDiffsWithMeta(
+        IBalanceProxy balanceProxy,
+        BalanceMetadata[] memory meta,
         IBalanceProxy.Balance[] memory diffs,
         IBalanceProxy.Approval[] memory approvals,
         PermitData[] memory permits,

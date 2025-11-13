@@ -5,7 +5,6 @@ import { encodeFunctionData, parseEther } from 'viem';
 
 import BalanceProxyModule from '@/ignition/modules/balance-proxy';
 
-// TargetMock ABI subset used for encoding
 const targetAbi = [
   {
     inputs: [{ internalType: 'address', name: '_erc20', type: 'address' }],
