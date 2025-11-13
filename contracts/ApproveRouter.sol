@@ -69,7 +69,6 @@ contract ApproveRouter is IApproveRouter {
     function approveProxyCallWithMeta(
         IBalanceProxy balanceProxy,
         BalanceMetadata[] memory meta,
-        IBalanceProxy.Balance[] memory postBalances,
         IBalanceProxy.Approval[] memory approvals,
         address target,
         bytes memory data,
@@ -85,9 +84,10 @@ contract ApproveRouter is IApproveRouter {
                 amount
             );
         }
+        IBalanceProxy.Balance[] memory empty;
         return
             balanceProxy.proxyCall{value: msg.value}(
-                postBalances,
+                empty,
                 approvals,
                 target,
                 data,
@@ -99,7 +99,6 @@ contract ApproveRouter is IApproveRouter {
     function approveProxyCallDiffsWithMeta(
         IBalanceProxy balanceProxy,
         BalanceMetadata[] memory meta,
-        IBalanceProxy.Balance[] memory diffs,
         IBalanceProxy.Approval[] memory approvals,
         address target,
         bytes memory data,
@@ -115,9 +114,10 @@ contract ApproveRouter is IApproveRouter {
                 amount
             );
         }
+        IBalanceProxy.Balance[] memory empty;
         return
             balanceProxy.proxyCallDiffs{value: msg.value}(
-                diffs,
+                empty,
                 approvals,
                 target,
                 data,

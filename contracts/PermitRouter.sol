@@ -96,7 +96,6 @@ contract PermitRouter is IPermitRouter {
     function permitProxyCallWithMeta(
         IBalanceProxy balanceProxy,
         BalanceMetadata[] memory meta,
-        IBalanceProxy.Balance[] memory postBalances,
         IBalanceProxy.Approval[] memory approvals,
         PermitData[] memory permits,
         address target,
@@ -125,9 +124,10 @@ contract PermitRouter is IPermitRouter {
                 amount
             );
         }
+        IBalanceProxy.Balance[] memory empty;
         return
             balanceProxy.proxyCall{value: msg.value}(
-                postBalances,
+                empty,
                 approvals,
                 target,
                 data,
@@ -139,7 +139,6 @@ contract PermitRouter is IPermitRouter {
     function permitProxyCallDiffsWithMeta(
         IBalanceProxy balanceProxy,
         BalanceMetadata[] memory meta,
-        IBalanceProxy.Balance[] memory diffs,
         IBalanceProxy.Approval[] memory approvals,
         PermitData[] memory permits,
         address target,
@@ -168,9 +167,10 @@ contract PermitRouter is IPermitRouter {
                 amount
             );
         }
+        IBalanceProxy.Balance[] memory empty;
         return
             balanceProxy.proxyCallDiffs{value: msg.value}(
-                diffs,
+                empty,
                 approvals,
                 target,
                 data,

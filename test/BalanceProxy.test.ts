@@ -704,7 +704,11 @@ describe('BalanceProxy + Routers (updated API)', function () {
 
       const meta = [
         {
-          token: token.address,
+          balance: {
+            target: target.address,
+            token: token.address,
+            balance: AMOUNT,
+          },
           symbol: 'MTK',
           decimals: 18,
         },
@@ -714,7 +718,6 @@ describe('BalanceProxy + Routers (updated API)', function () {
         [
           balanceProxy.address,
           meta,
-          [], // postBalances
           [
             {
               balance: {
@@ -752,7 +755,11 @@ describe('BalanceProxy + Routers (updated API)', function () {
 
       const meta = [
         {
-          token: token.address,
+          balance: {
+            target: other.account.address,
+            token: token.address,
+            balance: AMOUNT,
+          },
           symbol: 'MTK',
           decimals: 18,
         },
@@ -762,7 +769,6 @@ describe('BalanceProxy + Routers (updated API)', function () {
         [
           balanceProxy.address,
           meta,
-          [], // diffs (none expected)
           [
             {
               balance: {
@@ -974,7 +980,11 @@ describe('BalanceProxy + Routers (updated API)', function () {
 
       const meta = [
         {
-          token: token.address,
+          balance: {
+            target: target.address,
+            token: token.address,
+            balance: AMOUNT,
+          },
           symbol: 'MTK',
           decimals: 18,
         },
@@ -984,7 +994,6 @@ describe('BalanceProxy + Routers (updated API)', function () {
         [
           balanceProxy.address,
           meta,
-          [],
           [
             {
               balance: {
@@ -1026,7 +1035,11 @@ describe('BalanceProxy + Routers (updated API)', function () {
 
       const meta = [
         {
-          token: token.address,
+          balance: {
+            target: other.account.address,
+            token: token.address,
+            balance: AMOUNT,
+          },
           symbol: 'MTK',
           decimals: 18,
         },
@@ -1036,7 +1049,6 @@ describe('BalanceProxy + Routers (updated API)', function () {
         [
           balanceProxy.address,
           meta,
-          [], // diffs
           [
             {
               balance: {
@@ -1067,7 +1079,11 @@ describe('BalanceProxy + Routers (updated API)', function () {
 
       const meta = [
         {
-          token: token.address,
+          balance: {
+            target: target.address,
+            token: token.address,
+            balance: AMOUNT,
+          },
           symbol: 'MTK',
           decimals: 18,
         },
@@ -1078,7 +1094,6 @@ describe('BalanceProxy + Routers (updated API)', function () {
           [
             balanceProxy.address,
             meta,
-            [],
             [
               {
                 balance: {
@@ -1107,7 +1122,11 @@ describe('BalanceProxy + Routers (updated API)', function () {
 
       const meta = [
         {
-          token: token.address,
+          balance: {
+            target: other.account.address,
+            token: token.address,
+            balance: AMOUNT,
+          },
           symbol: 'MTK',
           decimals: 18,
         },
@@ -1118,7 +1137,6 @@ describe('BalanceProxy + Routers (updated API)', function () {
           [
             balanceProxy.address,
             meta,
-            [], // diffs
             [
               {
                 balance: {

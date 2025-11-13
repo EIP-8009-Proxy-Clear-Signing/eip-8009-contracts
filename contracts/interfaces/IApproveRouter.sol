@@ -21,7 +21,6 @@ interface IApproveRouter {
     function approveProxyCallWithMeta(
         IBalanceProxy balanceProxy,
         BalanceMetadata[] memory meta,
-        IBalanceProxy.Balance[] memory postBalances,
         IBalanceProxy.Approval[] memory approvals,
         address target,
         bytes memory data,
@@ -42,7 +41,6 @@ interface IApproveRouter {
     function approveProxyCallDiffsWithMeta(
         IBalanceProxy balanceProxy,
         BalanceMetadata[] memory meta,
-        IBalanceProxy.Balance[] memory diffs,
         IBalanceProxy.Approval[] memory approvals,
         address target,
         bytes memory data,
