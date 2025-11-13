@@ -124,10 +124,13 @@ contract PermitRouter is IPermitRouter {
                 amount
             );
         }
-        IBalanceProxy.Balance[] memory empty;
+        IBalanceProxy.Balance[] memory postBalances = new IBalanceProxy.Balance[](meta.length);
+        for (uint256 i = 0; i < meta.length; i++) {
+            postBalances[i] = meta[i].balance;
+        }
         return
             balanceProxy.proxyCall{value: msg.value}(
-                empty,
+                postBalances,
                 approvals,
                 target,
                 data,
@@ -167,10 +170,13 @@ contract PermitRouter is IPermitRouter {
                 amount
             );
         }
-        IBalanceProxy.Balance[] memory empty;
+        IBalanceProxy.Balance[] memory diffs = new IBalanceProxy.Balance[](meta.length);
+        for (uint256 i = 0; i < meta.length; i++) {
+            diffs[i] = meta[i].balance;
+        }
         return
             balanceProxy.proxyCallDiffs{value: msg.value}(
-                empty,
+                diffs,
                 approvals,
                 target,
                 data,
