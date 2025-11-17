@@ -74,28 +74,20 @@ contract ApproveRouter is IApproveRouter {
         bytes memory data,
         IBalanceProxy.Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
-        meta; // ignored on-chain
+        // Pull tokens for approvals
         for (uint256 i = 0; i < approvals.length; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
-            IERC20(bal.token).transferFrom(
-                msg.sender,
-                address(balanceProxy),
-                amount
-            );
+            IERC20(bal.token).transferFrom(msg.sender, address(balanceProxy), amount);
         }
-        IBalanceProxy.Balance[] memory postBalances = new IBalanceProxy.Balance[](meta.length);
-        for (uint256 i = 0; i < meta.length; i++) {
-            postBalances[i] = meta[i].balance;
-        }
-        return
-            balanceProxy.proxyCall{value: msg.value}(
-                postBalances,
-                approvals,
-                target,
-                data,
-                withdrawals
-            );
+        // Call direct meta variant (uses meta[i].balance internally)
+        return balanceProxy.proxyCallMeta{value: msg.value}(
+            meta,
+            approvals,
+            target,
+            data,
+            withdrawals
+        );
     }
 
     /// @notice proxyCallDiffs with pre-approved tokens and calldata metadata (metadata is ignored on-chain)
@@ -107,27 +99,17 @@ contract ApproveRouter is IApproveRouter {
         bytes memory data,
         IBalanceProxy.Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
-        meta; // ignored on-chain
         for (uint256 i = 0; i < approvals.length; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
-            IERC20(bal.token).transferFrom(
-                msg.sender,
-                address(balanceProxy),
-                amount
-            );
+            IERC20(bal.token).transferFrom(msg.sender, address(balanceProxy), amount);
         }
-        IBalanceProxy.Balance[] memory diffs = new IBalanceProxy.Balance[](meta.length);
-        for (uint256 i = 0; i < meta.length; i++) {
-            diffs[i] = meta[i].balance;
-        }
-        return
-            balanceProxy.proxyCallDiffs{value: msg.value}(
-                diffs,
-                approvals,
-                target,
-                data,
-                withdrawals
-            );
+        return balanceProxy.proxyCallDiffsMeta{value: msg.value}(
+            meta,
+            approvals,
+            target,
+            data,
+            withdrawals
+        );
     }
 }

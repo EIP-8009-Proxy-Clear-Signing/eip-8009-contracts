@@ -102,7 +102,7 @@ contract PermitRouter is IPermitRouter {
         bytes memory data,
         IBalanceProxy.Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
-        meta; // ignored on-chain
+        // metadata forwarded to BalanceProxy for absolute balance checks
         uint256 len = approvals.length;
         if (permits.length != len) revert PermitsLengthMismatch(permits.length, len);
         for (uint256 i = 0; i < len; i++) {
@@ -124,18 +124,13 @@ contract PermitRouter is IPermitRouter {
                 amount
             );
         }
-        IBalanceProxy.Balance[] memory postBalances = new IBalanceProxy.Balance[](meta.length);
-        for (uint256 i = 0; i < meta.length; i++) {
-            postBalances[i] = meta[i].balance;
-        }
-        return
-            balanceProxy.proxyCall{value: msg.value}(
-                postBalances,
-                approvals,
-                target,
-                data,
-                withdrawals
-            );
+        return balanceProxy.proxyCallMeta{value: msg.value}(
+            meta,
+            approvals,
+            target,
+            data,
+            withdrawals
+        );
     }
 
     /// @notice proxyCallDiffs with permits and calldata metadata (metadata is ignored on-chain)
@@ -148,7 +143,7 @@ contract PermitRouter is IPermitRouter {
         bytes memory data,
         IBalanceProxy.Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
-        meta; // ignored on-chain
+        // metadata forwarded to BalanceProxy for diff balance checks
         uint256 len = approvals.length;
         if (permits.length != len) revert PermitsLengthMismatch(permits.length, len);
         for (uint256 i = 0; i < len; i++) {
@@ -170,17 +165,12 @@ contract PermitRouter is IPermitRouter {
                 amount
             );
         }
-        IBalanceProxy.Balance[] memory diffs = new IBalanceProxy.Balance[](meta.length);
-        for (uint256 i = 0; i < meta.length; i++) {
-            diffs[i] = meta[i].balance;
-        }
-        return
-            balanceProxy.proxyCallDiffs{value: msg.value}(
-                diffs,
-                approvals,
-                target,
-                data,
-                withdrawals
-            );
+        return balanceProxy.proxyCallDiffsMeta{value: msg.value}(
+            meta,
+            approvals,
+            target,
+            data,
+            withdrawals
+        );
     }
 }

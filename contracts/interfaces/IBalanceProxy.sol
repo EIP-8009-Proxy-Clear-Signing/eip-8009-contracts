@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.27;
 
+import {BalanceMetadata} from "./IMetadata.sol";
+
 /// @title IBalanceProxy
 /// @notice Minimal interface for the BalanceProxy core contract
 /// @dev Core is dumb: it never pulls tokens, only uses its own balances
@@ -59,6 +61,24 @@ interface IBalanceProxy {
     /// @notice Proxy call with balance diffs
     function proxyCallDiffs(
         Balance[] memory diffs,
+        Approval[] memory approvals,
+        address target,
+        bytes memory data,
+        Balance[] memory withdrawals
+    ) external payable returns (bytes memory);
+
+    /// @notice Proxy call with metadata (absolute balances)
+    function proxyCallMeta(
+        BalanceMetadata[] memory meta,
+        Approval[] memory approvals,
+        address target,
+        bytes memory data,
+        Balance[] memory withdrawals
+    ) external payable returns (bytes memory);
+
+    /// @notice Proxy call with metadata diffs
+    function proxyCallDiffsMeta(
+        BalanceMetadata[] memory meta,
         Approval[] memory approvals,
         address target,
         bytes memory data,
