@@ -49,6 +49,15 @@ interface IBalanceProxy {
     /// @notice Error thrown when an approval amount is negative
     error NegativeApprovalAmount(int256 amount);
 
+    /// @notice Error thrown when metadata doesn't match actual token properties
+    error InvalidMetadata(
+        address token,
+        string expectedSymbol,
+        uint8 expectedDecimals,
+        string actualSymbol,
+        uint8 actualDecimals
+    );
+
     /// @notice Proxy call to a target contract with specified post-balance checks
     function proxyCall(
         Balance[] memory postBalances,
