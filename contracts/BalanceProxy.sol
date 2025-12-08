@@ -157,7 +157,9 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         for (i = 0; i < approvals.length; i++) {
             _applyApproval(approvals[i], target);
         }
-        (bool success, bytes memory result) = target.call{value: msg.value}(data);
+        (bool success, bytes memory result) = target.call{value: msg.value}(
+            data
+        );
         if (!success) revert CallFailed(target, data, result);
         for (i = 0; i < withdrawals.length; i++) {
             _transfer(withdrawals[i]);
@@ -188,8 +190,11 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
             IBalanceProxy.Balance memory b = meta[i].balance;
             before[i] = _currentBalance(b.token, b.target);
         }
-        for (i = 0; i < approvals.length; i++) _applyApproval(approvals[i], target);
-        (bool success, bytes memory result) = target.call{value: msg.value}(data);
+        for (i = 0; i < approvals.length; i++)
+            _applyApproval(approvals[i], target);
+        (bool success, bytes memory result) = target.call{value: msg.value}(
+            data
+        );
         if (!success) revert CallFailed(target, data, result);
         for (i = 0; i < withdrawals.length; i++) _transfer(withdrawals[i]);
         for (i = 0; i < len; i++) {
@@ -212,7 +217,7 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
     function _checkMetadata(BalanceMetadata memory meta) internal view {
         string memory actualSymbol;
         uint8 actualDecimals;
-        
+
         if (meta.balance.token == address(0)) {
             actualSymbol = "ETH";
             actualDecimals = 18;
@@ -220,9 +225,10 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
             actualSymbol = IERC20Metadata(meta.balance.token).symbol();
             actualDecimals = IERC20Metadata(meta.balance.token).decimals();
         }
-        
+
         if (
-            keccak256(abi.encodePacked(actualSymbol)) != keccak256(abi.encodePacked(meta.symbol)) ||
+            keccak256(abi.encodePacked(actualSymbol)) !=
+            keccak256(abi.encodePacked(meta.symbol)) ||
             actualDecimals != meta.decimals
         ) {
             revert InvalidMetadata(

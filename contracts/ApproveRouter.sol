@@ -78,16 +78,21 @@ contract ApproveRouter is IApproveRouter {
         for (uint256 i = 0; i < approvals.length; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
-            IERC20(bal.token).transferFrom(msg.sender, address(balanceProxy), amount);
+            IERC20(bal.token).transferFrom(
+                msg.sender,
+                address(balanceProxy),
+                amount
+            );
         }
         // Call direct meta variant (uses meta[i].balance internally)
-        return balanceProxy.proxyCallMeta{value: msg.value}(
-            meta,
-            approvals,
-            target,
-            data,
-            withdrawals
-        );
+        return
+            balanceProxy.proxyCallMeta{value: msg.value}(
+                meta,
+                approvals,
+                target,
+                data,
+                withdrawals
+            );
     }
 
     /// @notice proxyCallDiffs with pre-approved tokens and calldata metadata (metadata is ignored on-chain)
@@ -102,14 +107,19 @@ contract ApproveRouter is IApproveRouter {
         for (uint256 i = 0; i < approvals.length; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
-            IERC20(bal.token).transferFrom(msg.sender, address(balanceProxy), amount);
+            IERC20(bal.token).transferFrom(
+                msg.sender,
+                address(balanceProxy),
+                amount
+            );
         }
-        return balanceProxy.proxyCallDiffsMeta{value: msg.value}(
-            meta,
-            approvals,
-            target,
-            data,
-            withdrawals
-        );
+        return
+            balanceProxy.proxyCallDiffsMeta{value: msg.value}(
+                meta,
+                approvals,
+                target,
+                data,
+                withdrawals
+            );
     }
 }

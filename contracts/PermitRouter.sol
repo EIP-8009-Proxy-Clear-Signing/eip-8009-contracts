@@ -21,7 +21,8 @@ contract PermitRouter is IPermitRouter {
         IBalanceProxy.Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
         uint256 len = approvals.length;
-        if (permits.length != len) revert PermitsLengthMismatch(permits.length, len);
+        if (permits.length != len)
+            revert PermitsLengthMismatch(permits.length, len);
         for (uint256 i = 0; i < len; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
@@ -62,7 +63,8 @@ contract PermitRouter is IPermitRouter {
         IBalanceProxy.Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
         uint256 len = approvals.length;
-        if (permits.length != len) revert PermitsLengthMismatch(permits.length, len);
+        if (permits.length != len)
+            revert PermitsLengthMismatch(permits.length, len);
         for (uint256 i = 0; i < len; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
@@ -104,7 +106,8 @@ contract PermitRouter is IPermitRouter {
     ) external payable returns (bytes memory) {
         // metadata forwarded to BalanceProxy for absolute balance checks
         uint256 len = approvals.length;
-        if (permits.length != len) revert PermitsLengthMismatch(permits.length, len);
+        if (permits.length != len)
+            revert PermitsLengthMismatch(permits.length, len);
         for (uint256 i = 0; i < len; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
@@ -124,13 +127,14 @@ contract PermitRouter is IPermitRouter {
                 amount
             );
         }
-        return balanceProxy.proxyCallMeta{value: msg.value}(
-            meta,
-            approvals,
-            target,
-            data,
-            withdrawals
-        );
+        return
+            balanceProxy.proxyCallMeta{value: msg.value}(
+                meta,
+                approvals,
+                target,
+                data,
+                withdrawals
+            );
     }
 
     /// @notice proxyCallDiffs with permits and calldata metadata (metadata is ignored on-chain)
@@ -145,7 +149,8 @@ contract PermitRouter is IPermitRouter {
     ) external payable returns (bytes memory) {
         // metadata forwarded to BalanceProxy for diff balance checks
         uint256 len = approvals.length;
-        if (permits.length != len) revert PermitsLengthMismatch(permits.length, len);
+        if (permits.length != len)
+            revert PermitsLengthMismatch(permits.length, len);
         for (uint256 i = 0; i < len; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
@@ -165,12 +170,13 @@ contract PermitRouter is IPermitRouter {
                 amount
             );
         }
-        return balanceProxy.proxyCallDiffsMeta{value: msg.value}(
-            meta,
-            approvals,
-            target,
-            data,
-            withdrawals
-        );
+        return
+            balanceProxy.proxyCallDiffsMeta{value: msg.value}(
+                meta,
+                approvals,
+                target,
+                data,
+                withdrawals
+            );
     }
 }

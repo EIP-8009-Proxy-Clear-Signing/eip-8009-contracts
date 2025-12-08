@@ -31,7 +31,6 @@ interface IBalanceProxy {
         int256 actual
     );
 
-
     /// @notice Error thrown when a balance is insufficient
     error InsufficientBalance(
         address token,

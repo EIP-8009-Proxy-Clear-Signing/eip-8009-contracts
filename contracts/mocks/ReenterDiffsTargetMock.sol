@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.27;
 
-import { IBalanceProxy } from "../interfaces/IBalanceProxy.sol";
+import {IBalanceProxy} from "../interfaces/IBalanceProxy.sol";
 
 contract ReenterDiffsTargetMock {
     IBalanceProxy public proxy;
