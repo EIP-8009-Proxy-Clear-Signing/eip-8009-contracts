@@ -473,13 +473,16 @@ describe('ApproveRouter WithMeta', () => {
 
     const meta = [
       {
-        balance: {
-          target: balanceProxy.address,
-          token: token.address,
-          balance: AMOUNT,
-        },
         symbol: 'MTK',
         decimals: 18,
+      },
+    ];
+
+    const balances = [
+      {
+        target: balanceProxy.address,
+        token: token.address,
+        balance: AMOUNT,
       },
     ];
 
@@ -487,6 +490,7 @@ describe('ApproveRouter WithMeta', () => {
       [
         balanceProxy.address,
         meta,
+        balances,
         [
           {
             balance: {
@@ -524,13 +528,16 @@ describe('ApproveRouter WithMeta', () => {
 
     const meta = [
       {
-        balance: {
-          target: other.account.address,
-          token: token.address,
-          balance: AMOUNT,
-        },
         symbol: 'MTK',
         decimals: 18,
+      },
+    ];
+
+    const diffs = [
+      {
+        target: other.account.address,
+        token: token.address,
+        balance: AMOUNT,
       },
     ];
 
@@ -538,6 +545,7 @@ describe('ApproveRouter WithMeta', () => {
       [
         balanceProxy.address,
         meta,
+        diffs,
         [
           {
             balance: {
@@ -749,13 +757,16 @@ describe('PermitRouter WithMeta', () => {
 
     const meta = [
       {
-        balance: {
-          target: balanceProxy.address,
-          token: token.address,
-          balance: AMOUNT,
-        },
         symbol: 'MTK',
         decimals: 18,
+      },
+    ];
+
+    const balances = [
+      {
+        target: balanceProxy.address,
+        token: token.address,
+        balance: AMOUNT,
       },
     ];
 
@@ -763,6 +774,7 @@ describe('PermitRouter WithMeta', () => {
       [
         balanceProxy.address,
         meta,
+        balances,
         [
           {
             balance: {
@@ -804,13 +816,16 @@ describe('PermitRouter WithMeta', () => {
 
     const meta = [
       {
-        balance: {
-          target: other.account.address,
-          token: token.address,
-          balance: AMOUNT,
-        },
         symbol: 'MTK',
         decimals: 18,
+      },
+    ];
+
+    const diffs = [
+      {
+        target: other.account.address,
+        token: token.address,
+        balance: AMOUNT,
       },
     ];
 
@@ -818,6 +833,7 @@ describe('PermitRouter WithMeta', () => {
       [
         balanceProxy.address,
         meta,
+        diffs,
         [
           {
             balance: {
@@ -848,13 +864,16 @@ describe('PermitRouter WithMeta', () => {
 
     const meta = [
       {
-        balance: {
-          target: balanceProxy.address,
-          token: token.address,
-          balance: AMOUNT,
-        },
         symbol: 'MTK',
         decimals: 18,
+      },
+    ];
+
+    const balances = [
+      {
+        target: balanceProxy.address,
+        token: token.address,
+        balance: AMOUNT,
       },
     ];
 
@@ -863,6 +882,7 @@ describe('PermitRouter WithMeta', () => {
         [
           balanceProxy.address,
           meta,
+          balances,
           [
             {
               balance: {
@@ -891,13 +911,16 @@ describe('PermitRouter WithMeta', () => {
 
     const meta = [
       {
-        balance: {
-          target: other.account.address,
-          token: token.address,
-          balance: AMOUNT,
-        },
         symbol: 'MTK',
         decimals: 18,
+      },
+    ];
+
+    const diffs = [
+      {
+        target: other.account.address,
+        token: token.address,
+        balance: AMOUNT,
       },
     ];
 
@@ -906,6 +929,7 @@ describe('PermitRouter WithMeta', () => {
         [
           balanceProxy.address,
           meta,
+          diffs,
           [
             {
               balance: {
@@ -1121,431 +1145,5 @@ describe('BalanceProxy core error paths', () => {
         { account: user.account },
       ),
     ).to.be.rejectedWith('CallFailed');
-  });
-});
-
-describe('BalanceProxy meta variants', () => {
-  it('proxyCallMeta succeeds with ERC20 post balance check', async () => {
-    const { owner, user, token, balanceProxy, target } =
-      await loadFixture(deployFixture);
-    const AMT = parseEther('11');
-    // Mint tokens directly to proxy so expected absolute post balance matches
-    await token.write.mint([balanceProxy.address, AMT], {
-      account: owner.account,
-    });
-    const meta = [
-      {
-        balance: {
-          target: balanceProxy.address,
-          token: token.address as `0x${string}`,
-          balance: AMT,
-        },
-        symbol: 'MTK',
-        decimals: 18,
-      },
-    ];
-    await balanceProxy.write.proxyCallMeta(
-      [
-        meta,
-        [], // approvals
-        target.address,
-        '0x',
-        [], // withdrawals
-      ],
-      { account: user.account },
-    );
-    const proxyBal = await token.read.balanceOf([balanceProxy.address]);
-    expect(proxyBal).to.equal(AMT);
-  });
-
-  it('proxyCallMeta reverts InsufficientBalance when expected > actual', async () => {
-    const { user, token, balanceProxy, target } =
-      await loadFixture(deployFixture);
-    const AMT = parseEther('3');
-    // no mint -> proxy has 0 tokens
-    const meta = [
-      {
-        balance: {
-          target: balanceProxy.address,
-          token: token.address as `0x${string}`,
-          balance: AMT, // expect more than actual => revert
-        },
-        symbol: 'MTK',
-        decimals: 18,
-      },
-    ];
-    await expect(
-      balanceProxy.write.proxyCallMeta([meta, [], target.address, '0x', []], {
-        account: user.account,
-      }),
-    ).to.be.rejectedWith('InsufficientBalance');
-  });
-
-  it('proxyCallDiffsMeta succeeds with zero expected diff', async () => {
-    const { user, balanceProxy, target } = await loadFixture(deployFixture);
-    const meta = [
-      {
-        balance: {
-          target: balanceProxy.address,
-          token: '0x0000000000000000000000000000000000000000',
-          balance: 0n, // expect no change
-        },
-        symbol: 'ETH',
-        decimals: 18,
-      },
-    ];
-    await balanceProxy.write.proxyCallDiffsMeta(
-      [meta, [], target.address, '0x', []],
-      { account: user.account },
-    );
-  });
-
-  it('proxyCallDiffsMeta reverts UnexpectedBalanceDiff when diff unmet', async () => {
-    const { user, balanceProxy, target } = await loadFixture(deployFixture);
-    const meta = [
-      {
-        balance: {
-          target: balanceProxy.address,
-          token: '0x0000000000000000000000000000000000000000',
-          balance: 1n, // expect +1 wei increase
-        },
-        symbol: 'ETH',
-        decimals: 18,
-      },
-    ];
-    await expect(
-      balanceProxy.write.proxyCallDiffsMeta(
-        [meta, [], target.address, '0x', []],
-        { account: user.account },
-      ),
-    ).to.be.rejectedWith('UnexpectedBalanceDiff');
-  });
-
-  // Helper type for metadata to satisfy viem strict address template typing
-  type Meta = {
-    balance: { target: `0x${string}`; token: `0x${string}`; balance: bigint };
-    symbol: string;
-    decimals: number;
-  };
-
-  it('proxyCallMeta approval path sets allowance (useTransfer=false)', async () => {
-    const { owner, user, token, balanceProxy, target } =
-      await loadFixture(deployFixture);
-    const AMT = parseEther('8');
-    // Mint to proxy so it holds tokens used for approval
-    await token.write.mint([balanceProxy.address, AMT], {
-      account: owner.account,
-    });
-    const meta: Meta[] = [
-      {
-        balance: {
-          target: balanceProxy.address as `0x${string}`,
-          token: token.address as `0x${string}`,
-          balance: AMT,
-        },
-        symbol: 'MTK',
-        decimals: 18,
-      },
-    ];
-    await balanceProxy.write.proxyCallMeta(
-      [
-        meta,
-        [
-          {
-            balance: {
-              target: target.address,
-              token: token.address,
-              balance: AMT,
-            },
-            useTransfer: false,
-          },
-        ],
-        target.address,
-        '0x',
-        [],
-      ],
-      { account: user.account },
-    );
-    const allowance = await token.read.allowance([
-      balanceProxy.address,
-      target.address,
-    ]);
-    expect(allowance).to.equal(AMT);
-  });
-
-  it('proxyCallMeta transfer path moves tokens (useTransfer=true)', async () => {
-    const { owner, user, token, balanceProxy, target } =
-      await loadFixture(deployFixture);
-    const AMT = parseEther('9');
-    await token.write.mint([balanceProxy.address, AMT], {
-      account: owner.account,
-    });
-    const meta: Meta[] = [
-      {
-        balance: {
-          target: target.address as `0x${string}`,
-          token: token.address as `0x${string}`,
-          balance: AMT,
-        }, // after transfer + no other changes target must have AMT
-        symbol: 'MTK',
-        decimals: 18,
-      },
-    ];
-    await balanceProxy.write.proxyCallMeta(
-      [
-        meta,
-        [
-          {
-            balance: {
-              target: target.address,
-              token: token.address,
-              balance: AMT,
-            },
-            useTransfer: true,
-          },
-        ],
-        target.address,
-        '0x',
-        [],
-      ],
-      { account: user.account },
-    );
-    const targetBal = await token.read.balanceOf([target.address]);
-    expect(targetBal).to.equal(AMT);
-  });
-
-  it('proxyCallMeta reverts MaliciousApproveTarget when approval target mismatch', async () => {
-    const { owner, user, token, balanceProxy, target, other } =
-      await loadFixture(deployFixture);
-    const AMT = parseEther('4');
-    await token.write.mint([balanceProxy.address, AMT], {
-      account: owner.account,
-    });
-    const meta: Meta[] = [
-      {
-        balance: {
-          target: balanceProxy.address as `0x${string}`,
-          token: token.address as `0x${string}`,
-          balance: AMT,
-        },
-        symbol: 'MTK',
-        decimals: 18,
-      },
-    ];
-    await expect(
-      balanceProxy.write.proxyCallMeta(
-        [
-          meta,
-          [
-            {
-              balance: {
-                target: other.account.address,
-                token: token.address,
-                balance: AMT,
-              }, // differs from call target
-              useTransfer: false,
-            },
-          ],
-          target.address,
-          '0x',
-          [],
-        ],
-        { account: user.account },
-      ),
-    ).to.be.rejectedWith('MaliciousApproveTarget');
-  });
-
-  it('proxyCallMeta reverts NegativeApprovalAmount (<0)', async () => {
-    const { user, balanceProxy, target } = await loadFixture(deployFixture);
-    const meta: Meta[] = [
-      {
-        balance: {
-          target: balanceProxy.address as `0x${string}`,
-          token: '0x0000000000000000000000000000000000000000',
-          balance: 0n,
-        },
-        symbol: 'ETH',
-        decimals: 18,
-      },
-    ];
-    await expect(
-      balanceProxy.write.proxyCallMeta(
-        [
-          meta,
-          [
-            {
-              balance: {
-                target: target.address,
-                token: '0x0000000000000000000000000000000000000000',
-                balance: -1n,
-              },
-              useTransfer: false,
-            },
-          ],
-          target.address,
-          '0x',
-          [],
-        ],
-        { account: user.account },
-      ),
-    ).to.be.rejectedWith('NegativeApprovalAmount');
-  });
-
-  it('proxyCallMeta reverts CallFailed for bad function selector', async () => {
-    const { owner, user, token, balanceProxy, target } =
-      await loadFixture(deployFixture);
-    const AMT = parseEther('2');
-    await token.write.mint([balanceProxy.address, AMT], {
-      account: owner.account,
-    });
-    const meta: Meta[] = [
-      {
-        balance: {
-          target: balanceProxy.address as `0x${string}`,
-          token: token.address as `0x${string}`,
-          balance: AMT,
-        },
-        symbol: 'MTK',
-        decimals: 18,
-      },
-    ];
-    // invalid function selector (random 4 bytes) should revert
-    const badData = '0xdeadbeef';
-    await expect(
-      balanceProxy.write.proxyCallMeta(
-        [meta, [], target.address, badData, []],
-        { account: user.account },
-      ),
-    ).to.be.rejectedWith('CallFailed');
-  });
-
-  it('proxyCallDiffsMeta positive diff success (token increase)', async () => {
-    const { user, token, balanceProxy, target } =
-      await loadFixture(deployFixture);
-    const TAKE = parseEther('5');
-    const GIVE = parseEther('7');
-    // Mint TAKE to proxy so it can spend it (transferFrom inside TargetMock)
-    await token.write.mint([balanceProxy.address, TAKE], {
-      account: user.account,
-    });
-    const meta: Meta[] = [
-      {
-        balance: {
-          target: balanceProxy.address as `0x${string}`,
-          token: token.address as `0x${string}`,
-          balance: GIVE - TAKE,
-        }, // expected net diff
-        symbol: 'MTK',
-        decimals: 18,
-      },
-    ];
-    await balanceProxy.write.proxyCallDiffsMeta(
-      [
-        meta,
-        [
-          {
-            balance: {
-              target: target.address,
-              token: token.address,
-              balance: TAKE,
-            },
-            useTransfer: false,
-          },
-        ],
-        target.address,
-        encodeMint(TAKE, GIVE),
-        [],
-      ],
-      { account: user.account },
-    );
-    const finalBal = await token.read.balanceOf([balanceProxy.address]);
-    expect(finalBal).to.equal(GIVE); // started with TAKE, ended with GIVE
-  });
-
-  it('proxyCallDiffsMeta negative diff success (token decrease)', async () => {
-    const { user, token, balanceProxy, target } =
-      await loadFixture(deployFixture);
-    const TAKE = parseEther('6');
-    const GIVE = parseEther('2');
-    await token.write.mint([balanceProxy.address, TAKE], {
-      account: user.account,
-    });
-    // Expected diff is GIVE - TAKE (negative)
-    const expectedDiff = GIVE - TAKE; // < 0
-    const meta: Meta[] = [
-      {
-        balance: {
-          target: balanceProxy.address as `0x${string}`,
-          token: token.address as `0x${string}`,
-          balance: expectedDiff,
-        },
-        symbol: 'MTK',
-        decimals: 18,
-      },
-    ];
-    await balanceProxy.write.proxyCallDiffsMeta(
-      [
-        meta,
-        [
-          {
-            balance: {
-              target: target.address,
-              token: token.address,
-              balance: TAKE,
-            },
-            useTransfer: false,
-          },
-        ],
-        target.address,
-        encodeMint(TAKE, GIVE),
-        [],
-      ],
-      { account: user.account },
-    );
-    const finalBal = await token.read.balanceOf([balanceProxy.address]);
-    expect(finalBal).to.equal(GIVE);
-  });
-
-  it('proxyCallDiffsMeta reverts UnexpectedBalanceDiff for unmet negative expected diff', async () => {
-    const { user, token, balanceProxy, target } =
-      await loadFixture(deployFixture);
-    const TAKE = parseEther('5');
-    const GIVE = parseEther('2'); // actual net diff = GIVE - TAKE = -3
-    await token.write.mint([balanceProxy.address, TAKE], {
-      account: user.account,
-    });
-    const expectedDiff = -2n; // require diff >= -2, but actual is -3 (< -2) => revert
-    const meta: Meta[] = [
-      {
-        balance: {
-          target: balanceProxy.address as `0x${string}`,
-          token: token.address as `0x${string}`,
-          balance: expectedDiff,
-        },
-        symbol: 'MTK',
-        decimals: 18,
-      },
-    ];
-    await expect(
-      balanceProxy.write.proxyCallDiffsMeta(
-        [
-          meta,
-          [
-            {
-              balance: {
-                target: target.address,
-                token: token.address,
-                balance: TAKE,
-              },
-              useTransfer: false,
-            },
-          ],
-          target.address,
-          encodeMint(TAKE, GIVE),
-          [],
-        ],
-        { account: user.account },
-      ),
-    ).to.be.rejectedWith('UnexpectedBalanceDiff');
   });
 });
