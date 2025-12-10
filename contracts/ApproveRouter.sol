@@ -11,31 +11,42 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 /// @notice Handles allowance + pull tokens then delegates to BalanceProxy core
 contract ApproveRouter is IApproveRouter {
     /// @dev Internal function to validate metadata matches actual token properties
-    /// @param meta Metadata to validate
-    function _checkMetadata(BalanceMetadata memory meta) internal view {
-        string memory actualSymbol;
-        uint8 actualDecimals;
+    /// @param meta Metadata array to validate
+    /// @param balances Corresponding balances array
+    function _checkMetadata(
+        BalanceMetadata[] memory meta,
+        IBalanceProxy.Balance[] memory balances
+    ) internal view {
+        require(
+            meta.length == balances.length,
+            "Metadata and balances length mismatch"
+        );
 
-        if (meta.balance.token == address(0)) {
-            actualSymbol = "ETH";
-            actualDecimals = 18;
-        } else {
-            actualSymbol = IERC20Metadata(meta.balance.token).symbol();
-            actualDecimals = IERC20Metadata(meta.balance.token).decimals();
-        }
+        for (uint256 i = 0; i < meta.length; i++) {
+            string memory actualSymbol;
+            uint8 actualDecimals;
 
-        if (
-            keccak256(abi.encodePacked(actualSymbol)) !=
-            keccak256(abi.encodePacked(meta.symbol)) ||
-            actualDecimals != meta.decimals
-        ) {
-            revert IBalanceProxy.InvalidMetadata(
-                meta.balance.token,
-                meta.symbol,
-                meta.decimals,
-                actualSymbol,
-                actualDecimals
-            );
+            if (balances[i].token == address(0)) {
+                actualSymbol = "ETH";
+                actualDecimals = 18;
+            } else {
+                actualSymbol = IERC20Metadata(balances[i].token).symbol();
+                actualDecimals = IERC20Metadata(balances[i].token).decimals();
+            }
+
+            if (
+                keccak256(abi.encodePacked(actualSymbol)) !=
+                keccak256(abi.encodePacked(meta[i].symbol)) ||
+                actualDecimals != meta[i].decimals
+            ) {
+                revert IBalanceProxy.InvalidMetadata(
+                    balances[i].token,
+                    meta[i].symbol,
+                    meta[i].decimals,
+                    actualSymbol,
+                    actualDecimals
+                );
+            }
         }
     }
 
@@ -99,15 +110,15 @@ contract ApproveRouter is IApproveRouter {
     function approveProxyCallWithMeta(
         IBalanceProxy balanceProxy,
         BalanceMetadata[] memory meta,
+        IBalanceProxy.Balance[] memory balances,
         IBalanceProxy.Approval[] memory approvals,
         address target,
         bytes memory data,
         IBalanceProxy.Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
-        // Validate all metadata first
-        for (uint256 i = 0; i < meta.length; i++) {
-            _checkMetadata(meta[i]);
-        }
+        // Validate metadata against balances
+        _checkMetadata(meta, balances);
+
         // Pull tokens for approvals
         for (uint256 i = 0; i < approvals.length; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
@@ -118,10 +129,11 @@ contract ApproveRouter is IApproveRouter {
                 amount
             );
         }
-        // Call direct meta variant (uses meta[i].balance internally)
+
+        // Delegate to BalanceProxy
         return
-            balanceProxy.proxyCallMeta{value: msg.value}(
-                meta,
+            balanceProxy.proxyCall{value: msg.value}(
+                balances,
                 approvals,
                 target,
                 data,
@@ -133,15 +145,16 @@ contract ApproveRouter is IApproveRouter {
     function approveProxyCallDiffsWithMeta(
         IBalanceProxy balanceProxy,
         BalanceMetadata[] memory meta,
+        IBalanceProxy.Balance[] memory diffs,
         IBalanceProxy.Approval[] memory approvals,
         address target,
         bytes memory data,
         IBalanceProxy.Balance[] memory withdrawals
     ) external payable returns (bytes memory) {
-        // Validate all metadata first
-        for (uint256 i = 0; i < meta.length; i++) {
-            _checkMetadata(meta[i]);
-        }
+        // Validate metadata against diffs
+        _checkMetadata(meta, diffs);
+
+        // Pull tokens for approvals
         for (uint256 i = 0; i < approvals.length; i++) {
             IBalanceProxy.Balance memory bal = approvals[i].balance;
             uint256 amount = uint256(bal.balance);
@@ -151,9 +164,11 @@ contract ApproveRouter is IApproveRouter {
                 amount
             );
         }
+
+        // Delegate to BalanceProxy
         return
-            balanceProxy.proxyCallDiffsMeta{value: msg.value}(
-                meta,
+            balanceProxy.proxyCallDiffs{value: msg.value}(
+                diffs,
                 approvals,
                 target,
                 data,

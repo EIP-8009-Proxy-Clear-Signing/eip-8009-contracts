@@ -28,6 +28,7 @@ interface IPermitRouter {
     function permitProxyCallWithMeta(
         IBalanceProxy balanceProxy,
         BalanceMetadata[] memory meta,
+        IBalanceProxy.Balance[] memory balances,
         IBalanceProxy.Approval[] memory approvals,
         PermitData[] memory permits,
         address target,
@@ -50,6 +51,7 @@ interface IPermitRouter {
     function permitProxyCallDiffsWithMeta(
         IBalanceProxy balanceProxy,
         BalanceMetadata[] memory meta,
+        IBalanceProxy.Balance[] memory diffs,
         IBalanceProxy.Approval[] memory approvals,
         PermitData[] memory permits,
         address target,

@@ -74,22 +74,4 @@ interface IBalanceProxy {
         bytes memory data,
         Balance[] memory withdrawals
     ) external payable returns (bytes memory);
-
-    /// @notice Proxy call with metadata (absolute balances)
-    function proxyCallMeta(
-        BalanceMetadata[] memory meta,
-        Approval[] memory approvals,
-        address target,
-        bytes memory data,
-        Balance[] memory withdrawals
-    ) external payable returns (bytes memory);
-
-    /// @notice Proxy call with metadata diffs
-    function proxyCallDiffsMeta(
-        BalanceMetadata[] memory meta,
-        Approval[] memory approvals,
-        address target,
-        bytes memory data,
-        Balance[] memory withdrawals
-    ) external payable returns (bytes memory);
 }
