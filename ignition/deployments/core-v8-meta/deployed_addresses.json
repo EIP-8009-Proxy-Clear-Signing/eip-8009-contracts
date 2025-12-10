@@ -1,0 +1,5 @@
+{
+  "Core#ApproveRouter": "0x1C43012b00c5feDefF172ff74C7A27E407120eDA",
+  "Core#BalanceProxy": "0x1E54dC889eBD4e7F2fFd509090dd5F0Fb97F0f37",
+  "Core#PermitRouter": "0x7d89463918004b34FE0140819172DACac3422fDF"
+}

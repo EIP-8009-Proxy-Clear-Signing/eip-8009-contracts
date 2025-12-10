@@ -4,7 +4,7 @@ pragma solidity ^0.8.27;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IBalanceProxy} from "./interfaces/IBalanceProxy.sol";
-import {IERC20Permit, PermitData} from "./interfaces/IPermit.sol";
+import {BalanceMetadata} from "./interfaces/IMetadata.sol";
 import {SignedMath} from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -44,81 +44,22 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         }
     }
 
-    /// @dev Internal function to transfer and approve a balance
-    /// @param balance Balance to transfer and approve
-    /// @param callTarget The target address for the proxy call
-    /// @param useTransfer Whether to transfer tokens to target or approve target to spend them
-    /// @dev If the token is ETH, this function does nothing
-    function _transferAndApprove(
-        Balance memory balance,
-        address callTarget,
-        bool useTransfer
+    /// @dev Internal function to apply approval instruction (memory)
+    function _applyApproval(
+        Approval memory approval,
+        address callTarget
     ) internal {
-        if (balance.token == address(0)) {
-            return;
-        }
-
-        if (balance.target != callTarget) {
-            revert MaliciousApproveTarget(balance.token, balance.target);
-        }
-
-        IERC20(balance.token).transferFrom(
-            msg.sender,
-            address(this),
-            SignedMath.abs(balance.balance)
-        );
-
-        if (useTransfer) {
-            // Transfer tokens directly to target (for Uniswap, Curve, etc.)
-            IERC20(balance.token).transfer(
-                balance.target,
-                SignedMath.abs(balance.balance)
-            );
+        Balance memory bal = approval.balance;
+        // Guard: approval must be for the same target we are about to call
+        if (bal.target != callTarget)
+            revert MaliciousApproveTarget(bal.token, bal.target);
+        // Guard: amount must be non-negative (Approval uses uint when executing)
+        if (bal.balance < 0) revert NegativeApprovalAmount(bal.balance);
+        uint256 amount = uint256(bal.balance);
+        if (approval.useTransfer) {
+            IERC20(bal.token).transfer(bal.target, amount);
         } else {
-            // Approve target to spend tokens (default behavior)
-            IERC20(balance.token).approve(
-                balance.target,
-                SignedMath.abs(balance.balance)
-            );
-        }
-    }
-
-    /// @dev Calldata version of internal function to transfer and approve a balance
-    /// @param balance Balance to transfer and approve
-    /// @param callTarget The target address for the proxy call
-    /// @param useTransfer Whether to transfer tokens to target or approve target to spend them
-    /// @dev If the token is ETH, this function does nothing
-    function _transferAndApproveCalldata(
-        Balance calldata balance,
-        address callTarget,
-        bool useTransfer
-    ) internal {
-        if (balance.token == address(0)) {
-            return;
-        }
-
-        if (balance.target != callTarget) {
-            revert MaliciousApproveTarget(balance.token, balance.target);
-        }
-
-        IERC20(balance.token).transferFrom(
-            msg.sender,
-            address(this),
-            SignedMath.abs(balance.balance)
-        );
-
-        if (useTransfer) {
-            // Transfer tokens directly to target (for Uniswap, Curve, etc.)
-            IERC20(balance.token).transfer(
-                balance.target,
-                SignedMath.abs(balance.balance)
-            );
-        } else {
-            // Approve target to spend tokens (default behavior)
-            IERC20(balance.token).approve(
-                balance.target,
-                SignedMath.abs(balance.balance)
-            );
+            IERC20(bal.token).approve(bal.target, amount);
         }
     }
 
@@ -135,77 +76,6 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         }
     }
 
-    /// @dev Calldata version of internal function to transfer a balance
-    /// @param balance Balance to transfer
-    function _transferCalldata(Balance calldata balance) internal {
-        if (balance.token == address(0)) {
-            payable(balance.target).transfer(SignedMath.abs(balance.balance));
-        } else {
-            IERC20(balance.token).transfer(
-                balance.target,
-                SignedMath.abs(balance.balance)
-            );
-        }
-    }
-
-    /// @dev Internal function to check if metadata is valid
-    /// @param balance Balance to check
-    function _checkMetadata(BalanceMetadata memory balance) internal view {
-        string memory symbol;
-        uint8 decimals;
-        if (balance.balance.token == address(0)) {
-            symbol = "ETH";
-            decimals = 18;
-        } else {
-            symbol = IERC20Metadata(balance.balance.token).symbol();
-            decimals = IERC20Metadata(balance.balance.token).decimals();
-        }
-
-        if (
-            bytes32(abi.encodePacked(symbol)) !=
-            bytes32(abi.encodePacked(balance.symbol)) ||
-            decimals != balance.decimals
-        ) {
-            revert InvalidMetadata(
-                balance.balance.token,
-                balance.symbol,
-                balance.decimals,
-                symbol,
-                decimals
-            );
-        }
-    }
-
-    /// @dev Calldata version of internal function to check if metadata is valid
-    /// @param balance Balance to check
-    function _checkMetadataCalldata(
-        BalanceMetadata calldata balance
-    ) internal view {
-        string memory symbol;
-        uint8 decimals;
-        if (balance.balance.token == address(0)) {
-            symbol = "ETH";
-            decimals = 18;
-        } else {
-            symbol = IERC20Metadata(balance.balance.token).symbol();
-            decimals = IERC20Metadata(balance.balance.token).decimals();
-        }
-
-        if (
-            keccak256(abi.encodePacked(symbol)) !=
-            keccak256(abi.encodePacked(balance.symbol)) ||
-            decimals != balance.decimals
-        ) {
-            revert InvalidMetadata(
-                balance.balance.token,
-                balance.symbol,
-                balance.decimals,
-                symbol,
-                decimals
-            );
-        }
-    }
-
     function _currentBalance(
         address token,
         address who
@@ -213,631 +83,162 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         return token == address(0) ? who.balance : IERC20(token).balanceOf(who);
     }
 
-    /// @dev Internal function to handle permit for a single token
-    /// @param token Token address
-    /// @param amount Amount to permit
-    /// @param permitData Permit signature data
-    function _handlePermit(
-        address token,
-        uint256 amount,
-        PermitData memory permitData
-    ) internal {
-        if (token == address(0)) {
-            return;
-        }
-
-        // Skip permit if deadline is 0 (used when pre-approved via approve())
-        if (permitData.deadline == 0) {
-            return;
-        }
-
-        if (block.timestamp > permitData.deadline) {
-            revert PermitExpired(permitData.deadline);
-        }
-
-        try
-            IERC20Permit(token).permit(
-                msg.sender,
-                address(this),
-                amount,
-                permitData.deadline,
-                permitData.v,
-                permitData.r,
-                permitData.s
-            )
-        // solhint-disable-next-line no-empty-blocks
-        {
-
-        } catch {
-            revert PermitFailed(msg.sender, token);
-        }
-    }
-
-    /// @dev Calldata version of internal function to handle permit
-    function _handlePermitCalldata(
-        address token,
-        uint256 amount,
-        PermitData calldata permitData
-    ) internal {
-        if (token == address(0)) {
-            return; // ETH doesn't need permit
-        }
-
-        // Skip permit if deadline is 0 (used when pre-approved via approve())
-        if (permitData.deadline == 0) {
-            return;
-        }
-
-        if (block.timestamp > permitData.deadline) {
-            revert PermitExpired(permitData.deadline);
-        }
-
-        try
-            IERC20Permit(token).permit(
-                msg.sender,
-                address(this),
-                amount,
-                permitData.deadline,
-                permitData.v,
-                permitData.r,
-                permitData.s
-            )
-        // solhint-disable-next-line no-empty-blocks
-        {
-
-        } catch {
-            revert PermitFailed(msg.sender, token);
-        }
-    }
-
-    /// @inheritdoc IBalanceProxy
-    function permitAndProxyCall(
+    function proxyCall(
         Balance[] memory postBalances,
-        Balance[] memory approvals,
-        PermitData[] memory permits,
-        bool[] memory useTransferFlags,
+        Approval[] memory approvals,
         address target,
         bytes memory data,
         Balance[] memory withdrawals
-    ) external payable nonReentrant returns (bytes memory) {
-        if (permits.length != approvals.length) {
-            revert InvalidPermitLength(permits.length, approvals.length);
-        }
-        if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(
-                useTransferFlags.length,
-                approvals.length
-            );
-        }
-
+    ) external payable override nonReentrant returns (bytes memory) {
         uint256 i;
-        // Handle permits and pull tokens
         for (i = 0; i < approvals.length; i++) {
-            _handlePermit(
-                approvals[i].token,
-                SignedMath.abs(approvals[i].balance),
-                permits[i]
-            );
-            _transferAndApprove(approvals[i], target, useTransferFlags[i]);
+            _applyApproval(approvals[i], target);
         }
-
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
         );
-        if (!success) {
-            revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (!useTransferFlags[i] && approvals[i].token != address(0)) {
-                IERC20(approvals[i].token).approve(target, 0);
-            }
-        }
-
+        if (!success) revert CallFailed(target, data, result);
         for (i = 0; i < withdrawals.length; i++) {
             _transfer(withdrawals[i]);
         }
         for (i = 0; i < postBalances.length; i++) {
             _balanceCheck(postBalances[i]);
         }
-
         return result;
     }
 
-    /// @inheritdoc IBalanceProxy
-    function permitAndProxyCallCalldata(
-        Balance[] calldata postBalances,
-        Balance[] calldata approvals,
-        PermitData[] calldata permits,
-        bool[] calldata useTransferFlags,
-        address target,
-        bytes calldata data,
-        Balance[] calldata withdrawals
-    ) external payable nonReentrant returns (bytes memory) {
-        if (permits.length != approvals.length) {
-            revert InvalidPermitLength(permits.length, approvals.length);
-        }
-        if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(
-                useTransferFlags.length,
-                approvals.length
-            );
-        }
-
-        uint256 i;
-        for (i = 0; i < approvals.length; i++) {
-            _handlePermitCalldata(
-                approvals[i].token,
-                SignedMath.abs(approvals[i].balance),
-                permits[i]
-            );
-            _transferAndApproveCalldata(
-                approvals[i],
-                target,
-                useTransferFlags[i]
-            );
-        }
-
-        (bool success, bytes memory result) = target.call{value: msg.value}(
-            data
-        );
-        if (!success) {
-            revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (!useTransferFlags[i] && approvals[i].token != address(0)) {
-                IERC20(approvals[i].token).approve(target, 0);
-            }
-        }
-
-        for (i = 0; i < withdrawals.length; i++) {
-            _transferCalldata(withdrawals[i]);
-        }
-        for (i = 0; i < postBalances.length; i++) {
-            _balanceCheckCalldata(postBalances[i]);
-        }
-
-        return result;
-    }
-
-    /// @inheritdoc IBalanceProxy
-    function permitAndProxyCallMetadata(
-        BalanceMetadata[] memory postBalances,
-        BalanceMetadata[] memory approvals,
-        PermitData[] memory permits,
-        bool[] memory useTransferFlags,
+    function proxyCallDiffs(
+        Balance[] memory diffs,
+        Approval[] memory approvals,
         address target,
         bytes memory data,
-        BalanceMetadata[] memory withdrawals
-    ) external payable nonReentrant returns (bytes memory) {
-        if (permits.length != approvals.length) {
-            revert InvalidPermitLength(permits.length, approvals.length);
-        }
-        if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(
-                useTransferFlags.length,
-                approvals.length
-            );
-        }
-
+        Balance[] memory withdrawals
+    ) external payable override nonReentrant returns (bytes memory) {
         uint256 i;
-        for (i = 0; i < approvals.length; i++) {
-            _checkMetadata(approvals[i]);
-            _handlePermit(
-                approvals[i].balance.token,
-                SignedMath.abs(approvals[i].balance.balance),
-                permits[i]
-            );
-            _transferAndApprove(
-                approvals[i].balance,
-                target,
-                useTransferFlags[i]
-            );
-        }
-
+        uint256 len = diffs.length;
+        uint256[] memory before = new uint256[](len);
+        for (i = 0; i < len; i++)
+            before[i] = _currentBalance(diffs[i].token, diffs[i].target);
+        for (i = 0; i < approvals.length; i++)
+            _applyApproval(approvals[i], target);
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
         );
-        if (!success) {
-            revert CallFailed(target, data, result);
+        if (!success) revert CallFailed(target, data, result);
+        for (i = 0; i < withdrawals.length; i++) _transfer(withdrawals[i]);
+        for (i = 0; i < len; i++) {
+            uint256 afterBal = _currentBalance(diffs[i].token, diffs[i].target);
+            int256 actualDiff = int256(afterBal) - int256(before[i]);
+            if (actualDiff < diffs[i].balance)
+                revert UnexpectedBalanceDiff(
+                    diffs[i].token,
+                    diffs[i].target,
+                    diffs[i].balance,
+                    actualDiff
+                );
         }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (
-                !useTransferFlags[i] && approvals[i].balance.token != address(0)
-            ) {
-                IERC20(approvals[i].balance.token).approve(target, 0);
-            }
-        }
-
-        for (i = 0; i < withdrawals.length; i++) {
-            _checkMetadata(withdrawals[i]);
-            _transfer(withdrawals[i].balance);
-        }
-        for (i = 0; i < postBalances.length; i++) {
-            _checkMetadata(postBalances[i]);
-            _balanceCheck(postBalances[i].balance);
-        }
-
         return result;
     }
 
-    /// @inheritdoc IBalanceProxy
-    function permitAndProxyCallMetadataCalldata(
-        BalanceMetadata[] calldata postBalances,
-        BalanceMetadata[] calldata approvals,
-        PermitData[] calldata permits,
-        bool[] calldata useTransferFlags,
-        address target,
-        bytes calldata data,
-        BalanceMetadata[] calldata withdrawals
-    ) external payable nonReentrant returns (bytes memory) {
-        if (permits.length != approvals.length) {
-            revert InvalidPermitLength(permits.length, approvals.length);
-        }
-        if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(
-                useTransferFlags.length,
-                approvals.length
-            );
-        }
-
-        uint256 i;
-        for (i = 0; i < approvals.length; i++) {
-            _checkMetadataCalldata(approvals[i]);
-            _handlePermitCalldata(
-                approvals[i].balance.token,
-                SignedMath.abs(approvals[i].balance.balance),
-                permits[i]
-            );
-            _transferAndApproveCalldata(
-                approvals[i].balance,
-                target,
-                useTransferFlags[i]
-            );
-        }
-
-        (bool success, bytes memory result) = target.call{value: msg.value}(
-            data
-        );
-        if (!success) {
-            revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (
-                !useTransferFlags[i] && approvals[i].balance.token != address(0)
-            ) {
-                IERC20(approvals[i].balance.token).approve(target, 0);
-            }
-        }
-
-        for (i = 0; i < withdrawals.length; i++) {
-            _checkMetadataCalldata(withdrawals[i]);
-            _transferCalldata(withdrawals[i].balance);
-        }
-        for (i = 0; i < postBalances.length; i++) {
-            _checkMetadataCalldata(postBalances[i]);
-            _balanceCheckCalldata(postBalances[i].balance);
-        }
-
-        return result;
-    }
-
-    /// @inheritdoc IBalanceProxy
-    function permitAndProxyCallDiffs(
-        Balance[] memory diffs,
-        Balance[] memory approvals,
-        PermitData[] memory permits,
-        bool[] memory useTransferFlags,
+    /// @notice Proxy call to a target contract with metadata
+    /// @dev Validates metadata (symbol/decimals) against actual token properties
+    function proxyCallMeta(
+        BalanceMetadata[] memory meta,
+        Approval[] memory approvals,
         address target,
         bytes memory data,
         Balance[] memory withdrawals
     ) external payable nonReentrant returns (bytes memory) {
-        if (permits.length != approvals.length) {
-            revert InvalidPermitLength(permits.length, approvals.length);
-        }
-        if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(
-                useTransferFlags.length,
-                approvals.length
-            );
-        }
-
         uint256 i;
-        uint256 len = diffs.length;
-        uint256[] memory before = new uint256[](len);
-        for (i = 0; i < len; i++) {
-            before[i] = _currentBalance(diffs[i].token, diffs[i].target);
+        // Validate all metadata first
+        for (i = 0; i < meta.length; i++) {
+            _checkMetadata(meta[i]);
         }
-
         for (i = 0; i < approvals.length; i++) {
-            _handlePermit(
-                approvals[i].token,
-                SignedMath.abs(approvals[i].balance),
-                permits[i]
-            );
-            _transferAndApprove(approvals[i], target, useTransferFlags[i]);
+            _applyApproval(approvals[i], target);
         }
-
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
         );
-        if (!success) {
-            revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (!useTransferFlags[i] && approvals[i].token != address(0)) {
-                IERC20(approvals[i].token).approve(target, 0);
-            }
-        }
-
+        if (!success) revert CallFailed(target, data, result);
         for (i = 0; i < withdrawals.length; i++) {
             _transfer(withdrawals[i]);
         }
-        for (i = 0; i < len; i++) {
-            uint256 afterBal = _currentBalance(diffs[i].token, diffs[i].target);
-            int256 actualDiff = int256(afterBal) - int256(before[i]);
-            if (actualDiff < diffs[i].balance) {
-                revert UnexpectedBalanceDiff(
-                    diffs[i].token,
-                    diffs[i].target,
-                    diffs[i].balance,
-                    actualDiff
-                );
-            }
+        for (i = 0; i < meta.length; i++) {
+            _balanceCheck(meta[i].balance);
         }
-
         return result;
     }
 
-    /// @inheritdoc IBalanceProxy
-    function permitAndProxyCallCalldataDiffs(
-        Balance[] calldata diffs,
-        Balance[] calldata approvals,
-        PermitData[] calldata permits,
-        bool[] calldata useTransferFlags,
-        address target,
-        bytes calldata data,
-        Balance[] calldata withdrawals
-    ) external payable nonReentrant returns (bytes memory) {
-        if (permits.length != approvals.length) {
-            revert InvalidPermitLength(permits.length, approvals.length);
-        }
-        if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(
-                useTransferFlags.length,
-                approvals.length
-            );
-        }
-
-        uint256 i;
-        uint256 len = diffs.length;
-        uint256[] memory before = new uint256[](len);
-        for (i = 0; i < len; i++) {
-            before[i] = _currentBalance(diffs[i].token, diffs[i].target);
-        }
-
-        for (i = 0; i < approvals.length; i++) {
-            _handlePermitCalldata(
-                approvals[i].token,
-                SignedMath.abs(approvals[i].balance),
-                permits[i]
-            );
-            _transferAndApproveCalldata(
-                approvals[i],
-                target,
-                useTransferFlags[i]
-            );
-        }
-
-        (bool success, bytes memory result) = target.call{value: msg.value}(
-            data
-        );
-        if (!success) {
-            revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (!useTransferFlags[i] && approvals[i].token != address(0)) {
-                IERC20(approvals[i].token).approve(target, 0);
-            }
-        }
-
-        for (i = 0; i < withdrawals.length; i++) {
-            _transferCalldata(withdrawals[i]);
-        }
-        for (i = 0; i < len; i++) {
-            uint256 afterBal = _currentBalance(diffs[i].token, diffs[i].target);
-            int256 actualDiff = int256(afterBal) - int256(before[i]);
-            if (actualDiff < diffs[i].balance) {
-                revert UnexpectedBalanceDiff(
-                    diffs[i].token,
-                    diffs[i].target,
-                    diffs[i].balance,
-                    actualDiff
-                );
-            }
-        }
-
-        return result;
-    }
-
-    /// @inheritdoc IBalanceProxy
-    function permitAndProxyCallMetadataDiffs(
-        BalanceMetadata[] memory diffs,
-        BalanceMetadata[] memory approvals,
-        PermitData[] memory permits,
-        bool[] memory useTransferFlags,
+    /// @notice Proxy call with balance diffs provided in metadata
+    /// @dev Validates metadata (symbol/decimals) against actual token properties
+    function proxyCallDiffsMeta(
+        BalanceMetadata[] memory meta,
+        Approval[] memory approvals,
         address target,
         bytes memory data,
-        BalanceMetadata[] memory withdrawals
+        Balance[] memory withdrawals
     ) external payable nonReentrant returns (bytes memory) {
-        if (permits.length != approvals.length) {
-            revert InvalidPermitLength(permits.length, approvals.length);
-        }
-        if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(
-                useTransferFlags.length,
-                approvals.length
-            );
-        }
-
         uint256 i;
-        uint256 len = diffs.length;
+        uint256 len = meta.length;
+        // Validate all metadata first
+        for (i = 0; i < len; i++) {
+            _checkMetadata(meta[i]);
+        }
         uint256[] memory before = new uint256[](len);
         for (i = 0; i < len; i++) {
-            before[i] = _currentBalance(
-                diffs[i].balance.token,
-                diffs[i].balance.target
-            );
+            IBalanceProxy.Balance memory b = meta[i].balance;
+            before[i] = _currentBalance(b.token, b.target);
         }
-
-        for (i = 0; i < approvals.length; i++) {
-            _checkMetadata(approvals[i]);
-            _handlePermit(
-                approvals[i].balance.token,
-                SignedMath.abs(approvals[i].balance.balance),
-                permits[i]
-            );
-            _transferAndApprove(
-                approvals[i].balance,
-                target,
-                useTransferFlags[i]
-            );
-        }
-
+        for (i = 0; i < approvals.length; i++)
+            _applyApproval(approvals[i], target);
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
         );
-        if (!success) {
-            revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (
-                !useTransferFlags[i] && approvals[i].balance.token != address(0)
-            ) {
-                IERC20(approvals[i].balance.token).approve(target, 0);
-            }
-        }
-
-        for (i = 0; i < withdrawals.length; i++) {
-            _checkMetadata(withdrawals[i]);
-            _transfer(withdrawals[i].balance);
-        }
+        if (!success) revert CallFailed(target, data, result);
+        for (i = 0; i < withdrawals.length; i++) _transfer(withdrawals[i]);
         for (i = 0; i < len; i++) {
-            uint256 afterBal = _currentBalance(
-                diffs[i].balance.token,
-                diffs[i].balance.target
-            );
+            IBalanceProxy.Balance memory b2 = meta[i].balance;
+            uint256 afterBal = _currentBalance(b2.token, b2.target);
             int256 actualDiff = int256(afterBal) - int256(before[i]);
-            if (actualDiff < diffs[i].balance.balance) {
+            if (actualDiff < b2.balance)
                 revert UnexpectedBalanceDiff(
-                    diffs[i].balance.token,
-                    diffs[i].balance.target,
-                    diffs[i].balance.balance,
+                    b2.token,
+                    b2.target,
+                    b2.balance,
                     actualDiff
                 );
-            }
         }
-
         return result;
     }
 
-    /// @inheritdoc IBalanceProxy
-    function permitAndProxyCallMetadataCalldataDiffs(
-        BalanceMetadata[] calldata diffs,
-        BalanceMetadata[] calldata approvals,
-        PermitData[] calldata permits,
-        bool[] calldata useTransferFlags,
-        address target,
-        bytes calldata data,
-        BalanceMetadata[] calldata withdrawals
-    ) external payable nonReentrant returns (bytes memory) {
-        if (permits.length != approvals.length) {
-            revert InvalidPermitLength(permits.length, approvals.length);
+    /// @dev Internal function to validate metadata matches actual token properties
+    /// @param meta Metadata to validate
+    function _checkMetadata(BalanceMetadata memory meta) internal view {
+        string memory actualSymbol;
+        uint8 actualDecimals;
+
+        if (meta.balance.token == address(0)) {
+            actualSymbol = "ETH";
+            actualDecimals = 18;
+        } else {
+            actualSymbol = IERC20Metadata(meta.balance.token).symbol();
+            actualDecimals = IERC20Metadata(meta.balance.token).decimals();
         }
-        if (useTransferFlags.length != approvals.length) {
-            revert InvalidTransferFlagsLength(
-                useTransferFlags.length,
-                approvals.length
+
+        if (
+            keccak256(abi.encodePacked(actualSymbol)) !=
+            keccak256(abi.encodePacked(meta.symbol)) ||
+            actualDecimals != meta.decimals
+        ) {
+            revert InvalidMetadata(
+                meta.balance.token,
+                meta.symbol,
+                meta.decimals,
+                actualSymbol,
+                actualDecimals
             );
         }
-
-        uint256 i;
-        uint256 len = diffs.length;
-        uint256[] memory before = new uint256[](len);
-        for (i = 0; i < len; i++) {
-            before[i] = _currentBalance(
-                diffs[i].balance.token,
-                diffs[i].balance.target
-            );
-        }
-
-        for (i = 0; i < approvals.length; i++) {
-            _checkMetadataCalldata(approvals[i]);
-            _handlePermitCalldata(
-                approvals[i].balance.token,
-                SignedMath.abs(approvals[i].balance.balance),
-                permits[i]
-            );
-            _transferAndApproveCalldata(
-                approvals[i].balance,
-                target,
-                useTransferFlags[i]
-            );
-        }
-
-        (bool success, bytes memory result) = target.call{value: msg.value}(
-            data
-        );
-        if (!success) {
-            revert CallFailed(target, data, result);
-        }
-
-        // Clear approvals after call to prevent lingering allowances
-        for (i = 0; i < approvals.length; i++) {
-            if (
-                !useTransferFlags[i] && approvals[i].balance.token != address(0)
-            ) {
-                IERC20(approvals[i].balance.token).approve(target, 0);
-            }
-        }
-
-        for (i = 0; i < withdrawals.length; i++) {
-            _checkMetadataCalldata(withdrawals[i]);
-            _transferCalldata(withdrawals[i].balance);
-        }
-        for (i = 0; i < len; i++) {
-            uint256 afterBal = _currentBalance(
-                diffs[i].balance.token,
-                diffs[i].balance.target
-            );
-            int256 actualDiff = int256(afterBal) - int256(before[i]);
-            if (
-                SignedMath.abs(actualDiff) <
-                SignedMath.abs(diffs[i].balance.balance)
-            ) {
-                revert UnexpectedBalanceDiff(
-                    diffs[i].balance.token,
-                    diffs[i].balance.target,
-                    diffs[i].balance.balance,
-                    actualDiff
-                );
-            }
-        }
-
-        return result;
     }
 
     receive() external payable {}

@@ -1,53 +1,21 @@
 import { loadFixture } from '@nomicfoundation/hardhat-toolbox-viem/network-helpers';
 import { expect } from 'chai';
 import { viem, ignition } from 'hardhat';
-import {
-  type Address,
-  encodeFunctionData,
-  erc20Abi,
-  parseEther,
-  zeroAddress,
-} from 'viem';
+import { encodeFunctionData, erc20Abi, parseEther } from 'viem';
 
 import BalanceProxyModule from '@/ignition/modules/balance-proxy';
 
+// TargetMock ABI subset used for encoding
 const targetAbi = [
   {
-    inputs: [
-      {
-        internalType: 'address',
-        name: '_erc20',
-        type: 'address',
-      },
-    ],
+    inputs: [{ internalType: 'address', name: '_erc20', type: 'address' }],
     stateMutability: 'nonpayable',
     type: 'constructor',
   },
   {
-    inputs: [],
-    name: 'erc20',
-    outputs: [
-      {
-        internalType: 'contract ERC20Mock',
-        name: '',
-        type: 'address',
-      },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
     inputs: [
-      {
-        internalType: 'uint256',
-        name: 'take',
-        type: 'uint256',
-      },
-      {
-        internalType: 'uint256',
-        name: 'give',
-        type: 'uint256',
-      },
+      { internalType: 'uint256', name: 'take', type: 'uint256' },
+      { internalType: 'uint256', name: 'give', type: 'uint256' },
     ],
     name: 'mint',
     outputs: [],
@@ -56,1124 +24,1528 @@ const targetAbi = [
   },
   {
     inputs: [
-      {
-        internalType: 'uint256',
-        name: 'take',
-        type: 'uint256',
-      },
-      {
-        internalType: 'uint256',
-        name: 'give',
-        type: 'uint256',
-      },
+      { internalType: 'uint256', name: 'take', type: 'uint256' },
+      { internalType: 'uint256', name: 'give', type: 'uint256' },
     ],
     name: 'mintEth',
     outputs: [],
     stateMutability: 'payable',
     type: 'function',
   },
+] as const;
+
+// ReenterTargetMock ABI subset
+const reenterAbi = [
   {
-    stateMutability: 'payable',
-    type: 'receive',
+    inputs: [],
+    name: 'attack',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
   },
 ] as const;
 
-async function deployFixture() {
-  const [owner, other] = await viem.getWalletClients();
-
-  // Deploy BalanceProxy using ignition
-  const { balanceProxy } = await ignition.deploy(BalanceProxyModule, {
-    defaultSender: owner.account.address,
-  });
-
-  // Deploy ERC20 using viem
-  const erc20 = await viem.deployContract('ERC20Mock', ['MockToken', 'MTK'], {
-    client: { wallet: owner },
-  });
-
-  const target = await viem.deployContract('TargetMock', [erc20.address], {
-    client: { wallet: owner },
-  });
-
-  const testClient = await viem.getTestClient();
-  const publicClient = await viem.getPublicClient();
-
-  return {
-    owner,
-    other,
-    balanceProxy,
-    erc20,
-    target,
-    testClient,
-    publicClient,
-  };
-}
-
-const encodeTransfer = (to: Address, amount: bigint) => {
-  return encodeFunctionData({
-    abi: erc20Abi,
-    functionName: 'transfer',
-    args: [to, amount],
-  });
-};
-
-const encodeMint = (take: bigint, give: bigint) => {
+function encodeMint(take: bigint, give: bigint) {
   return encodeFunctionData({
     abi: targetAbi,
     functionName: 'mint',
     args: [take, give],
   });
-};
+}
 
-const encodeMintEth = (take: bigint, give: bigint) => {
+function encodeMintEth(take: bigint, give: bigint) {
   return encodeFunctionData({
     abi: targetAbi,
     functionName: 'mintEth',
     args: [take, give],
   });
-};
+}
 
-// Helper to create empty permit data (for use with pre-approved tokens)
-const createEmptyPermits = (count: number) => {
-  return Array(count).fill({
-    deadline: 0n,
-    v: 0,
-    r: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
-    s: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+async function deployFixture() {
+  const [owner, user, other] = await viem.getWalletClients();
+  const { balanceProxy } = await ignition.deploy(BalanceProxyModule, {
+    defaultSender: owner.account.address,
   });
-};
+  const token = await viem.deployContract('ERC20Mock', ['MockToken', 'MTK'], {
+    client: { wallet: owner },
+  });
+  const target = await viem.deployContract('TargetMock', [token.address], {
+    client: { wallet: owner },
+  });
+  const approveRouter = await viem.deployContract('ApproveRouter', [], {
+    client: { wallet: owner },
+  });
+  const permitRouter = await viem.deployContract('PermitRouter', [], {
+    client: { wallet: owner },
+  });
+  const publicClient = await viem.getPublicClient();
+  return {
+    owner,
+    user,
+    other,
+    balanceProxy,
+    token,
+    target,
+    approveRouter,
+    permitRouter,
+    publicClient,
+  };
+}
 
-describe('BalanceProxy', function () {
-  it('should deploy and be callable', async function () {
-    const { balanceProxy } = await loadFixture(deployFixture);
+describe('BalanceProxy + Routers (updated API)', function () {
+  this.timeout(120000);
+  it('deploys core & routers', async () => {
+    const { balanceProxy, approveRouter, permitRouter } =
+      await loadFixture(deployFixture);
     expect(balanceProxy.address).to.be.a('string');
+    expect(approveRouter.address).to.be.a('string');
+    expect(permitRouter.address).to.be.a('string');
   });
 
-  describe('permitAndProxyCall', function () {
-    it('should call a target contract', async function () {
-      const { balanceProxy, erc20, owner, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeTransfer(other.account.address, amount);
-
-      await balanceProxy.write.permitAndProxyCall([
-        [],
-        [
-          {
-            balance: amount,
-            token: erc20.address,
-            target: erc20.address,
-          },
-        ],
-        createEmptyPermits(1), // Empty permit for 1 approval
-        [false], // useTransferFlags
-        erc20.address,
-        data,
-        [],
-      ]);
-
-      const balance = await erc20.read.balanceOf([other.account.address]);
-      expect(balance).to.equal(amount);
+  it('reverts InsufficientBalance when postBalance (ETH) expects more than actual', async () => {
+    const { owner, user, token, target, balanceProxy, approveRouter } =
+      await loadFixture(deployFixture);
+    const TAKE = parseEther('5');
+    const GIVE_ETH = parseEther('2');
+    await token.write.mint([user.account.address, TAKE]);
+    await owner.sendTransaction({ to: target.address, value: GIVE_ETH });
+    await token.write.approve([approveRouter.address, TAKE], {
+      account: user.account,
     });
-
-    it('should transfer eth', async function () {
-      const { balanceProxy, owner, other, publicClient } =
-        await loadFixture(deployFixture);
-
-      const balanceBeforeOwner = await publicClient.getBalance({
-        address: owner.account.address,
-      });
-      const balanceBeforeOther = await publicClient.getBalance({
-        address: other.account.address,
-      });
-      const gasCost = parseEther('0.1');
-      const amount = parseEther('1');
-
-      await balanceProxy.write.permitAndProxyCall(
+    await expect(
+      approveRouter.write.approveProxyCall(
         [
+          balanceProxy.address,
           [
             {
-              token: zeroAddress,
-              balance: balanceBeforeOwner - gasCost - amount,
-              target: owner.account.address,
-            },
-            {
-              token: zeroAddress,
-              balance: balanceBeforeOther + amount,
-              target: other.account.address,
-            },
-          ],
-          [
-            {
-              token: zeroAddress,
-              balance: amount,
-              target: other.account.address,
-            },
-          ],
-          createEmptyPermits(1), // Empty permit for 1 approval
-          [false], // useTransferFlags
-          other.account.address,
-          '0x00',
-          [],
-        ],
-        { value: amount },
-      );
-    });
-
-    it('should revert if target call fails', async function () {
-      const { balanceProxy, erc20, owner, target, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeTransfer(other.account.address, amount);
-
-      await expect(
-        balanceProxy.write.permitAndProxyCall([
-          [],
-          [
-            {
-              balance: amount,
-              token: erc20.address,
-              target: target.address,
-            },
-          ],
-          createEmptyPermits(1), // Empty permit for 1 approval
-          [false], // useTransferFlags
-          target.address,
-          data,
-          [],
-        ]),
-      ).rejectedWith('CallFailed');
-    });
-
-    it('should withdraw tokens', async function () {
-      const { balanceProxy, erc20, owner, target, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeMint(amount, amount * 2n);
-
-      await balanceProxy.write.permitAndProxyCall([
-        [
-          {
-            balance: amount * 2n,
-            target: other.account.address,
-            token: erc20.address,
-          },
-          {
-            balance: 0n,
-            target: owner.account.address,
-            token: erc20.address,
-          },
-        ],
-        [
-          {
-            balance: amount,
-            target: target.address,
-            token: erc20.address,
-          },
-        ],
-        createEmptyPermits(1), // Empty permit for 1 approval
-        [false], // useTransferFlags
-        target.address,
-        data,
-        [
-          {
-            balance: amount * 2n,
-            target: other.account.address,
-            token: erc20.address,
-          },
-        ],
-      ]);
-    });
-
-    it('should withdraw eth', async function () {
-      const { balanceProxy, erc20, owner, target, other, publicClient } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-      await owner.sendTransaction({ to: target.address, value: amount * 2n });
-
-      const balanceBefore = await publicClient.getBalance({
-        address: other.account.address,
-      });
-
-      const data = encodeMintEth(amount, amount * 2n);
-
-      await balanceProxy.write.permitAndProxyCall([
-        [
-          {
-            balance: balanceBefore + amount * 2n,
-            target: other.account.address,
-            token: zeroAddress,
-          },
-          {
-            balance: 0n,
-            target: owner.account.address,
-            token: erc20.address,
-          },
-        ],
-        [
-          {
-            balance: amount,
-            target: target.address,
-            token: erc20.address,
-          },
-        ],
-        createEmptyPermits(1), // Empty permit for 1 approval
-        [false], // useTransferFlags
-        target.address,
-        data,
-        [
-          {
-            balance: amount * 2n,
-            target: other.account.address,
-            token: zeroAddress,
-          },
-        ],
-      ]);
-    });
-  });
-
-  describe('permitAndProxyCallMetadata', function () {
-    it('should call a target contract', async function () {
-      const { balanceProxy, erc20, owner, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeTransfer(other.account.address, amount);
-
-      await balanceProxy.write.permitAndProxyCallMetadata([
-        [],
-        [
-          {
-            balance: {
-              balance: amount,
-              target: erc20.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-        ],
-        createEmptyPermits(1), // Empty permit for 1 approval
-        [false], // useTransferFlags
-        erc20.address,
-        data,
-        [],
-      ]);
-
-      const balance = await erc20.read.balanceOf([other.account.address]);
-      expect(balance).to.equal(amount);
-    });
-
-    it('should transfer eth', async function () {
-      const { balanceProxy, owner, other, publicClient } =
-        await loadFixture(deployFixture);
-
-      const balanceBeforeOwner = await publicClient.getBalance({
-        address: owner.account.address,
-      });
-      const balanceBeforeOther = await publicClient.getBalance({
-        address: other.account.address,
-      });
-      const gasCost = parseEther('0.1');
-      const amount = parseEther('1');
-
-      await balanceProxy.write.permitAndProxyCallMetadata(
-        [
-          [
-            {
-              balance: {
-                token: zeroAddress,
-                balance: balanceBeforeOwner - gasCost - amount,
-                target: owner.account.address,
-              },
-              symbol: 'ETH',
-              decimals: 18,
-            },
-            {
-              balance: {
-                token: zeroAddress,
-                balance: balanceBeforeOther + amount,
-                target: other.account.address,
-              },
-              symbol: 'ETH',
-              decimals: 18,
+              target: balanceProxy.address,
+              token: '0x0000000000000000000000000000000000000000',
+              balance: GIVE_ETH + 1n,
             },
           ],
           [
             {
               balance: {
-                token: zeroAddress,
-                balance: amount,
-                target: other.account.address,
-              },
-              symbol: 'ETH',
-              decimals: 18,
-            },
-          ],
-          createEmptyPermits(1),
-          [false], // useTransferFlags
-          other.account.address,
-          '0x00',
-          [],
-        ],
-        { value: amount },
-      );
-    });
-
-    it('should revert if target call fails', async function () {
-      const { balanceProxy, erc20, owner, target, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeTransfer(other.account.address, amount);
-
-      await expect(
-        balanceProxy.write.permitAndProxyCallMetadata([
-          [],
-          [
-            {
-              balance: {
-                token: erc20.address,
                 target: target.address,
-                balance: amount,
+                token: token.address,
+                balance: TAKE,
               },
-              symbol: 'MTK',
-              decimals: 18,
+              useTransfer: false,
             },
           ],
-          createEmptyPermits(1),
-          [false], // useTransferFlags
           target.address,
-          data,
+          encodeMintEth(TAKE, GIVE_ETH),
           [],
-        ]),
-      ).rejectedWith('CallFailed');
-    });
-
-    it('should withdraw tokens', async function () {
-      const { balanceProxy, erc20, owner, target, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeMint(amount, amount * 2n);
-
-      await balanceProxy.write.permitAndProxyCallMetadata([
-        [
-          {
-            balance: {
-              balance: amount * 2n,
-              target: other.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-          {
-            balance: {
-              balance: 0n,
-              target: owner.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
         ],
-        [
-          {
-            balance: {
-              balance: amount,
-              target: target.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-        ],
-        createEmptyPermits(1),
-        [false], // useTransferFlags
-        target.address,
-        data,
-        [
-          {
-            balance: {
-              balance: amount * 2n,
-              target: other.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-        ],
-      ]);
-    });
-
-    it('should withdraw eth', async function () {
-      const { balanceProxy, erc20, owner, target, other, publicClient } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-      await owner.sendTransaction({ to: target.address, value: amount * 2n });
-
-      const balanceBefore = await publicClient.getBalance({
-        address: other.account.address,
-      });
-
-      const data = encodeMintEth(amount, amount * 2n);
-
-      await balanceProxy.write.permitAndProxyCallMetadata([
-        [
-          {
-            balance: {
-              balance: balanceBefore + amount * 2n,
-              target: other.account.address,
-              token: zeroAddress,
-            },
-            symbol: 'ETH',
-            decimals: 18,
-          },
-          {
-            balance: {
-              balance: 0n,
-              target: owner.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-        ],
-        [
-          {
-            balance: {
-              balance: amount,
-              target: target.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-        ],
-        createEmptyPermits(1),
-        [false], // useTransferFlags
-        target.address,
-        data,
-        [
-          {
-            balance: {
-              balance: amount * 2n,
-              target: other.account.address,
-              token: zeroAddress,
-            },
-            symbol: 'ETH',
-            decimals: 18,
-          },
-        ],
-      ]);
-    });
-
-    it('should fail if metadata symbol is wrong', async function () {
-      const { balanceProxy, erc20, owner, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeTransfer(other.account.address, amount);
-
-      await expect(
-        balanceProxy.write.permitAndProxyCallMetadata([
-          [],
-          [
-            {
-              balance: {
-                balance: amount,
-                target: other.account.address,
-                token: erc20.address,
-              },
-              symbol: 'WRONG',
-              decimals: 18,
-            },
-          ],
-          createEmptyPermits(1),
-          [false], // useTransferFlags
-          erc20.address,
-          data,
-          [],
-        ]),
-      ).to.be.rejectedWith('InvalidMetadata');
-    });
-
-    it('should fail if metadata decimals is wrong', async function () {
-      const { balanceProxy, erc20, owner, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeTransfer(other.account.address, amount);
-
-      await expect(
-        balanceProxy.write.permitAndProxyCallMetadata([
-          [],
-          [
-            {
-              balance: {
-                balance: amount,
-                target: other.account.address,
-                token: erc20.address,
-              },
-              symbol: 'MTK',
-              decimals: 6,
-            },
-          ],
-          createEmptyPermits(1),
-          [false], // useTransferFlags
-          erc20.address,
-          data,
-          [],
-        ]),
-      ).to.be.rejectedWith('InvalidMetadata');
-    });
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('InsufficientBalance');
   });
 
-  describe('permitAndProxyCallCalldata', function () {
-    it('should call a target contract', async function () {
-      const { balanceProxy, erc20, owner, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeTransfer(other.account.address, amount);
-
-      await balanceProxy.write.permitAndProxyCallCalldata([
-        [],
+  it('withdraws ETH and checks postBalance for ETH', async () => {
+    const { owner, user, other, token, target, balanceProxy, approveRouter } =
+      await loadFixture(deployFixture);
+    const TAKE = parseEther('10');
+    const GIVE_ETH = parseEther('3');
+    await token.write.mint([user.account.address, TAKE]);
+    // fund target so it can pay ETH to proxy
+    await owner.sendTransaction({ to: target.address, value: GIVE_ETH });
+    await token.write.approve([approveRouter.address, TAKE], {
+      account: user.account,
+    });
+    await approveRouter.write.approveProxyCall(
+      [
+        balanceProxy.address,
         [
           {
-            balance: amount,
-            token: erc20.address,
-            target: erc20.address,
+            target: balanceProxy.address,
+            token: '0x0000000000000000000000000000000000000000',
+            balance: 0n,
           },
         ],
-        createEmptyPermits(1),
-        [false],
-        erc20.address,
-        data,
-        [],
-      ]);
-
-      const balance = await erc20.read.balanceOf([other.account.address]);
-      expect(balance).to.equal(amount);
-    });
-
-    it('should transfer eth', async function () {
-      const { balanceProxy, owner, other, publicClient } =
-        await loadFixture(deployFixture);
-
-      const balanceBeforeOwner = await publicClient.getBalance({
-        address: owner.account.address,
-      });
-      const balanceBeforeOther = await publicClient.getBalance({
-        address: other.account.address,
-      });
-      const gasCost = parseEther('0.1');
-      const amount = parseEther('1');
-
-      await balanceProxy.write.permitAndProxyCallCalldata(
         [
-          [
-            {
-              token: zeroAddress,
-              balance: balanceBeforeOwner - gasCost - amount,
-              target: owner.account.address,
-            },
-            {
-              token: zeroAddress,
-              balance: balanceBeforeOther + amount,
-              target: other.account.address,
-            },
-          ],
-          [
-            {
-              token: zeroAddress,
-              balance: amount,
-              target: other.account.address,
-            },
-          ],
-          createEmptyPermits(1), // Empty permit for 1 approval
-          [false], // useTransferFlags
-          other.account.address,
-          '0x00',
-          [],
-        ],
-        { value: amount },
-      );
-    });
-
-    it('should revert if target call fails', async function () {
-      const { balanceProxy, erc20, owner, target, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeTransfer(other.account.address, amount);
-
-      await expect(
-        balanceProxy.write.permitAndProxyCallCalldata([
-          [],
-          [
-            {
-              balance: amount,
-              token: erc20.address,
+          {
+            balance: {
               target: target.address,
+              token: token.address,
+              balance: TAKE,
             },
-          ],
-          createEmptyPermits(1),
-          [false],
-          target.address,
-          data,
-          [],
-        ]),
-      ).rejectedWith('CallFailed');
-    });
-
-    it('should withdraw tokens', async function () {
-      const { balanceProxy, erc20, owner, target, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeMint(amount, amount * 2n);
-
-      await balanceProxy.write.permitAndProxyCallCalldata([
-        [
-          {
-            balance: amount * 2n,
-            target: other.account.address,
-            token: erc20.address,
-          },
-          {
-            balance: 0n,
-            target: owner.account.address,
-            token: erc20.address,
+            useTransfer: false,
           },
         ],
-        [
-          {
-            balance: amount,
-            target: target.address,
-            token: erc20.address,
-          },
-        ],
-        createEmptyPermits(1),
-        [false], // useTransferFlags
         target.address,
-        data,
+        encodeMintEth(TAKE, GIVE_ETH),
         [
           {
-            balance: amount * 2n,
             target: other.account.address,
-            token: erc20.address,
+            token: '0x0000000000000000000000000000000000000000',
+            balance: GIVE_ETH,
           },
         ],
-      ]);
-    });
-
-    it('should withdraw eth', async function () {
-      const { balanceProxy, erc20, owner, target, other, publicClient } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-      await owner.sendTransaction({ to: target.address, value: amount * 2n });
-
-      const balanceBefore = await publicClient.getBalance({
-        address: other.account.address,
-      });
-
-      const data = encodeMintEth(amount, amount * 2n);
-
-      await balanceProxy.write.permitAndProxyCallCalldata([
-        [
-          {
-            balance: balanceBefore + amount * 2n,
-            target: other.account.address,
-            token: zeroAddress,
-          },
-          {
-            balance: 0n,
-            target: owner.account.address,
-            token: erc20.address,
-          },
-        ],
-        [
-          {
-            balance: amount,
-            target: target.address,
-            token: erc20.address,
-          },
-        ],
-        createEmptyPermits(1),
-        [false], // useTransferFlags
-        target.address,
-        data,
-        [
-          {
-            balance: amount * 2n,
-            target: other.account.address,
-            token: zeroAddress,
-          },
-        ],
-      ]);
-    });
+      ],
+      { account: user.account },
+    );
+    const pc = await viem.getPublicClient();
+    const proxyEth = await pc.getBalance({ address: balanceProxy.address });
+    expect(proxyEth).to.equal(0n);
   });
+});
 
-  describe('permitAndProxyCallMetadataCalldata', function () {
-    it('should call a target contract', async function () {
-      const { balanceProxy, erc20, owner, other } =
-        await loadFixture(deployFixture);
+describe('PermitRouter.permitProxyCall', () => {
+  // Narrow interfaces to avoid using `any`
+  type PermitToken = {
+    address: `0x${string}`;
+    read: {
+      name: () => Promise<string>;
+      nonces: (args: [`0x${string}`]) => Promise<bigint>;
+    };
+  };
+  type TestWallet = {
+    account: { address: `0x${string}` };
+    getChainId: () => Promise<number>;
+    signTypedData: (args: {
+      domain: {
+        name: string;
+        version: string;
+        chainId: number;
+        verifyingContract: `0x${string}`;
+      };
+      types: {
+        Permit: Array<{ name: string; type: string }>;
+      };
+      primaryType: 'Permit';
+      message: {
+        owner: `0x${string}`;
+        spender: `0x${string}`;
+        value: bigint;
+        nonce: bigint;
+        deadline: bigint;
+      };
+    }) => Promise<`0x${string}`>; // viem wallet client signature helper
+  };
+  async function buildPermit(
+    user: TestWallet,
+    token: PermitToken,
+    spender: `0x${string}`,
+    value: bigint,
+  ) {
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+    const nonce = await token.read.nonces([user.account.address]);
+    const domain = {
+      name: await token.read.name(),
+      version: '1',
+      chainId: await user.getChainId(),
+      verifyingContract: token.address,
+    };
+    const types = {
+      Permit: [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' },
+      ],
+    };
+    const message = {
+      owner: user.account.address,
+      spender,
+      value,
+      nonce,
+      deadline,
+    };
+    const signature = await user.signTypedData({
+      domain,
+      types,
+      primaryType: 'Permit',
+      message,
+    });
+    const r = `0x${signature.slice(2, 66)}` as `0x${string}`;
+    const s = `0x${signature.slice(66, 130)}` as `0x${string}`;
+    const v = parseInt(signature.slice(130, 132), 16);
+    return { deadline, v, r, s };
+  }
 
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeTransfer(other.account.address, amount);
-
-      await balanceProxy.write.permitAndProxyCallMetadataCalldata([
+  it('approve mode with permit pulls tokens & sets allowance', async () => {
+    const { user, token, target, balanceProxy, permitRouter } =
+      await loadFixture(deployFixture);
+    const AMOUNT = parseEther('25');
+    await token.write.mint([user.account.address, AMOUNT]);
+    const permit = await buildPermit(user, token, permitRouter.address, AMOUNT);
+    await permitRouter.write.permitProxyCall(
+      [
+        balanceProxy.address,
         [],
         [
           {
             balance: {
-              balance: amount,
-              target: erc20.address,
-              token: erc20.address,
+              target: target.address,
+              token: token.address,
+              balance: AMOUNT,
             },
-            symbol: 'MTK',
-            decimals: 18,
+            useTransfer: false,
           },
         ],
-        createEmptyPermits(1),
-        [false], // useTransferFlags
-        erc20.address,
-        data,
+        [permit],
+        target.address,
+        '0x',
         [],
-      ]);
+      ],
+      { account: user.account },
+    );
+    const proxyBal = await token.read.balanceOf([balanceProxy.address]);
+    expect(proxyBal).to.equal(AMOUNT);
+    const allowance = await token.read.allowance([
+      balanceProxy.address,
+      target.address,
+    ]);
+    expect(allowance).to.equal(AMOUNT);
+  });
 
-      const balance = await erc20.read.balanceOf([other.account.address]);
-      expect(balance).to.equal(amount);
-    });
-
-    it('should transfer eth', async function () {
-      const { balanceProxy, owner, other, publicClient } =
-        await loadFixture(deployFixture);
-
-      const balanceBeforeOwner = await publicClient.getBalance({
-        address: owner.account.address,
-      });
-      const balanceBeforeOther = await publicClient.getBalance({
-        address: other.account.address,
-      });
-      const gasCost = parseEther('0.1');
-      const amount = parseEther('1');
-
-      await balanceProxy.write.permitAndProxyCallMetadataCalldata(
+  it('transfer mode with permit moves tokens to target', async () => {
+    const { user, token, target, balanceProxy, permitRouter } =
+      await loadFixture(deployFixture);
+    const AMOUNT = parseEther('40');
+    await token.write.mint([user.account.address, AMOUNT]);
+    const permit = await buildPermit(user, token, permitRouter.address, AMOUNT);
+    await permitRouter.write.permitProxyCall(
+      [
+        balanceProxy.address,
+        [],
         [
-          [
-            {
-              balance: {
-                token: zeroAddress,
-                balance: balanceBeforeOwner - gasCost - amount,
-                target: owner.account.address,
-              },
-              symbol: 'ETH',
-              decimals: 18,
+          {
+            balance: {
+              target: target.address,
+              token: token.address,
+              balance: AMOUNT,
             },
-            {
-              balance: {
-                token: zeroAddress,
-                balance: balanceBeforeOther + amount,
-                target: other.account.address,
-              },
-              symbol: 'ETH',
-              decimals: 18,
-            },
-          ],
-          [
-            {
-              balance: {
-                token: zeroAddress,
-                balance: amount,
-                target: other.account.address,
-              },
-              symbol: 'ETH',
-              decimals: 18,
-            },
-          ],
-          createEmptyPermits(1),
-          [false], // useTransferFlags
-          other.account.address,
-          '0x00',
-          [],
+            useTransfer: true,
+          },
         ],
-        { value: amount },
-      );
+        [permit],
+        target.address,
+        '0x',
+        [],
+      ],
+      { account: user.account },
+    );
+    const targetBal = await token.read.balanceOf([target.address]);
+    expect(targetBal).to.equal(AMOUNT);
+  });
+});
+
+describe('Error: CallFailed', () => {
+  it('reverts when calling non-existent function on target', async () => {
+    const { user, token, target, balanceProxy, approveRouter } =
+      await loadFixture(deployFixture);
+    const AMOUNT = parseEther('5');
+    await token.write.mint([user.account.address, AMOUNT]);
+    await token.write.approve([approveRouter.address, AMOUNT], {
+      account: user.account,
     });
-
-    it('should revert if target call fails', async function () {
-      const { balanceProxy, erc20, owner, target, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeTransfer(other.account.address, amount);
-
-      await expect(
-        balanceProxy.write.permitAndProxyCallMetadataCalldata([
+    // encode ERC20 transfer (target does not implement) => should revert
+    const data = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [target.address, AMOUNT],
+    });
+    await expect(
+      approveRouter.write.approveProxyCall(
+        [
+          balanceProxy.address,
           [],
           [
             {
               balance: {
-                token: erc20.address,
                 target: target.address,
-                balance: amount,
+                token: token.address,
+                balance: AMOUNT,
               },
-              symbol: 'MTK',
-              decimals: 18,
+              useTransfer: false,
             },
           ],
-          createEmptyPermits(1),
-          [false], // useTransferFlags
           target.address,
           data,
           [],
-        ]),
-      ).rejectedWith('CallFailed');
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('CallFailed');
+  });
+
+  it('reverts when calling non-existent function on target via proxyCallDiffs', async () => {
+    const { user, target, balanceProxy, approveRouter } =
+      await loadFixture(deployFixture);
+    const data = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [target.address, 1n],
     });
+    await expect(
+      approveRouter.write.approveProxyCallDiffs(
+        [
+          balanceProxy.address,
+          [], // diffs
+          [], // approvals
+          target.address,
+          data,
+          [],
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('CallFailed');
+  });
+});
 
-    it('should withdraw tokens', async function () {
-      const { balanceProxy, erc20, owner, target, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeMint(amount, amount * 2n);
-
-      await balanceProxy.write.permitAndProxyCallMetadataCalldata([
+describe('proxyCallDiffs via ApproveRouter', () => {
+  it('checks expected diffs (positive balance increase)', async () => {
+    const { user, token, target, balanceProxy, approveRouter } =
+      await loadFixture(deployFixture);
+    const TAKE = parseEther('10');
+    const GIVE = parseEther('15');
+    await token.write.mint([user.account.address, TAKE]);
+    await token.write.approve([approveRouter.address, TAKE], {
+      account: user.account,
+    });
+    // Expect proxy balance diff >= GIVE (after mint it receives GIVE tokens)
+    await approveRouter.write.approveProxyCallDiffs(
+      [
+        balanceProxy.address,
         [
           {
-            balance: {
-              balance: amount * 2n,
-              target: other.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-          {
-            balance: {
-              balance: 0n,
-              target: owner.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
+            target: balanceProxy.address,
+            token: token.address,
+            balance: GIVE - TAKE, // net balance increase expected (GIVE - TAKE)
           },
         ],
         [
           {
             balance: {
-              balance: amount,
               target: target.address,
-              token: erc20.address,
+              token: token.address,
+              balance: TAKE,
             },
-            symbol: 'MTK',
-            decimals: 18,
+            useTransfer: false,
           },
         ],
-        createEmptyPermits(1),
-        [false], // useTransferFlags
         target.address,
-        data,
+        encodeMint(TAKE, GIVE),
+        [],
+      ],
+      { account: user.account },
+    );
+    const bal = await token.read.balanceOf([balanceProxy.address]);
+    expect(bal).to.equal(GIVE); // TAKE was spent, GIVE minted
+  });
+
+  it('handles ETH diff zero success path', async () => {
+    const { user, other, balanceProxy, approveRouter } =
+      await loadFixture(deployFixture);
+    // Target an EOA with empty data so the low-level call succeeds; no state change => diff 0
+    await approveRouter.write.approveProxyCallDiffs(
+      [
+        balanceProxy.address,
         [
           {
-            balance: {
-              balance: amount * 2n,
-              target: other.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
+            target: balanceProxy.address,
+            token: '0x0000000000000000000000000000000000000000',
+            balance: 0n,
           },
         ],
-      ]);
+        [],
+        other.account.address,
+        '0x',
+        [],
+      ],
+      { account: user.account },
+    );
+  });
+});
+
+describe('ApproveRouter WithMeta', () => {
+  it('approveProxyCallWithMeta: pulls tokens and sets allowance (meta ignored)', async () => {
+    const { user, token, target, balanceProxy, approveRouter } =
+      await loadFixture(deployFixture);
+    const AMOUNT = parseEther('33');
+    await token.write.mint([user.account.address, AMOUNT]);
+    await token.write.approve([approveRouter.address, AMOUNT], {
+      account: user.account,
     });
 
-    it('should withdraw eth', async function () {
-      const { balanceProxy, erc20, owner, target, other, publicClient } =
-        await loadFixture(deployFixture);
+    const meta = [
+      {
+        balance: {
+          target: balanceProxy.address,
+          token: token.address,
+          balance: AMOUNT,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
 
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-      await owner.sendTransaction({ to: target.address, value: amount * 2n });
-
-      const balanceBefore = await publicClient.getBalance({
-        address: other.account.address,
-      });
-
-      const data = encodeMintEth(amount, amount * 2n);
-
-      await balanceProxy.write.permitAndProxyCallMetadataCalldata([
+    await approveRouter.write.approveProxyCallWithMeta(
+      [
+        balanceProxy.address,
+        meta,
         [
           {
             balance: {
-              balance: balanceBefore + amount * 2n,
-              target: other.account.address,
-              token: zeroAddress,
-            },
-            symbol: 'ETH',
-            decimals: 18,
-          },
-          {
-            balance: {
-              balance: 0n,
-              target: owner.account.address,
-              token: erc20.address,
-            },
-            symbol: 'MTK',
-            decimals: 18,
-          },
-        ],
-        [
-          {
-            balance: {
-              balance: amount,
               target: target.address,
-              token: erc20.address,
+              token: token.address,
+              balance: AMOUNT,
             },
-            symbol: 'MTK',
-            decimals: 18,
+            useTransfer: false,
           },
         ],
-        createEmptyPermits(1),
-        [false], // useTransferFlags
         target.address,
-        data,
+        encodeMint(0n, 0n),
+        [],
+      ],
+      { account: user.account },
+    );
+
+    const proxyBal = await token.read.balanceOf([balanceProxy.address]);
+    expect(proxyBal).to.equal(AMOUNT);
+    const allowance = await token.read.allowance([
+      balanceProxy.address,
+      target.address,
+    ]);
+    expect(allowance).to.equal(AMOUNT);
+  });
+
+  it('approveProxyCallDiffsWithMeta: transfer mode sends tokens to EOA target', async () => {
+    const { user, token, other, balanceProxy, approveRouter } =
+      await loadFixture(deployFixture);
+    const AMOUNT = parseEther('21');
+    await token.write.mint([user.account.address, AMOUNT]);
+    await token.write.approve([approveRouter.address, AMOUNT], {
+      account: user.account,
+    });
+
+    const meta = [
+      {
+        balance: {
+          target: other.account.address,
+          token: token.address,
+          balance: AMOUNT,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+
+    await approveRouter.write.approveProxyCallDiffsWithMeta(
+      [
+        balanceProxy.address,
+        meta,
         [
           {
             balance: {
-              balance: amount * 2n,
               target: other.account.address,
-              token: zeroAddress,
+              token: token.address,
+              balance: AMOUNT,
             },
-            symbol: 'ETH',
-            decimals: 18,
+            useTransfer: true,
           },
         ],
-      ]);
+        other.account.address, // EOA target, empty data succeeds
+        '0x',
+        [],
+      ],
+      { account: user.account },
+    );
+
+    const targetBal = await token.read.balanceOf([other.account.address]);
+    expect(targetBal).to.equal(AMOUNT);
+  });
+});
+
+describe('withdrawals loop executes (direct proxyCall)', () => {
+  it('sends ETH via withdrawals and reduces proxy balance', async () => {
+    const { owner, user, other, balanceProxy } =
+      await loadFixture(deployFixture);
+    // fund proxy with 5 wei
+    await owner.sendTransaction({ to: balanceProxy.address, value: 5n });
+    // withdraw 3 wei to `other`
+    await balanceProxy.write.proxyCall(
+      [
+        [],
+        [],
+        other.account.address,
+        '0x',
+        [
+          {
+            target: other.account.address,
+            token: '0x0000000000000000000000000000000000000000',
+            balance: 3n,
+          },
+        ],
+      ],
+      { account: user.account },
+    );
+    const pc = await viem.getPublicClient();
+    const proxyEth = await pc.getBalance({ address: balanceProxy.address });
+    expect(proxyEth).to.equal(2n);
+  });
+
+  it('sends ERC20 via withdrawals from proxy balance', async () => {
+    const { owner, user, token, other, balanceProxy } =
+      await loadFixture(deployFixture);
+    const AMT = parseEther('10');
+    const OUT = parseEther('4');
+    await token.write.mint([balanceProxy.address, AMT], {
+      account: owner.account,
+    });
+    await balanceProxy.write.proxyCall(
+      [
+        [],
+        [],
+        other.account.address,
+        '0x',
+        [
+          {
+            target: user.account.address,
+            token: token.address,
+            balance: OUT,
+          },
+        ],
+      ],
+      { account: user.account },
+    );
+    const proxyBal = await token.read.balanceOf([balanceProxy.address]);
+    const userBal = await token.read.balanceOf([user.account.address]);
+    expect(proxyBal).to.equal(AMT - OUT);
+    expect(userBal).to.equal(OUT);
+  });
+});
+
+describe('withdrawals loop executes (proxyCallDiffs path)', () => {
+  it('sends ETH via withdrawals inside proxyCallDiffs', async () => {
+    const { owner, user, other, balanceProxy } =
+      await loadFixture(deployFixture);
+    const pc = await viem.getPublicClient();
+    // fund proxy with 5 wei
+    await owner.sendTransaction({ to: balanceProxy.address, value: 5n });
+    const beforeProxy = await pc.getBalance({
+      address: balanceProxy.address,
+    });
+    const beforeOther = await pc.getBalance({
+      address: other.account.address,
     });
 
-    it('should fail if metadata is wrong', async function () {
-      const { balanceProxy, erc20, owner, other } =
-        await loadFixture(deployFixture);
+    await balanceProxy.write.proxyCallDiffs(
+      [
+        [], // diffs
+        [], // approvals
+        other.account.address, // target: EOA call succeeds
+        '0x',
+        [
+          {
+            target: other.account.address,
+            token: '0x0000000000000000000000000000000000000000',
+            balance: 3n,
+          },
+        ],
+      ],
+      { account: user.account },
+    );
 
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
+    const afterProxy = await pc.getBalance({
+      address: balanceProxy.address,
+    });
+    const afterOther = await pc.getBalance({
+      address: other.account.address,
+    });
+    expect(beforeProxy - afterProxy).to.equal(3n);
+    expect(afterOther - beforeOther).to.equal(3n);
+  });
+});
 
-      const data = encodeTransfer(other.account.address, amount);
+describe('PermitRouter WithMeta', () => {
+  // Local helper duplicating buildPermit to keep scope self-contained
+  type PermitToken = {
+    address: `0x${string}`;
+    read: {
+      name: () => Promise<string>;
+      nonces: (args: [`0x${string}`]) => Promise<bigint>;
+    };
+  };
+  type TestWallet = {
+    account: { address: `0x${string}` };
+    getChainId: () => Promise<number>;
+    signTypedData: (args: {
+      domain: {
+        name: string;
+        version: string;
+        chainId: number;
+        verifyingContract: `0x${string}`;
+      };
+      types: {
+        Permit: Array<{ name: string; type: string }>;
+      };
+      primaryType: 'Permit';
+      message: {
+        owner: `0x${string}`;
+        spender: `0x${string}`;
+        value: bigint;
+        nonce: bigint;
+        deadline: bigint;
+      };
+    }) => Promise<`0x${string}`>;
+  };
+  async function buildPermit(
+    user: TestWallet,
+    token: PermitToken,
+    spender: `0x${string}`,
+    value: bigint,
+  ) {
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+    const nonce = await token.read.nonces([user.account.address]);
+    const domain = {
+      name: await token.read.name(),
+      version: '1',
+      chainId: await user.getChainId(),
+      verifyingContract: token.address,
+    };
+    const types = {
+      Permit: [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' },
+      ],
+    };
+    const message = {
+      owner: user.account.address,
+      spender,
+      value,
+      nonce,
+      deadline,
+    };
+    const signature = await user.signTypedData({
+      domain,
+      types,
+      primaryType: 'Permit',
+      message,
+    });
+    const r = `0x${signature.slice(2, 66)}` as `0x${string}`;
+    const s = `0x${signature.slice(66, 130)}` as `0x${string}`;
+    const v = parseInt(signature.slice(130, 132), 16);
+    return { deadline, v, r, s };
+  }
 
-      await expect(
-        balanceProxy.write.permitAndProxyCallMetadataCalldata([
+  it('permitProxyCallWithMeta: pulls tokens and sets allowance (meta ignored)', async () => {
+    const { user, token, target, balanceProxy, permitRouter } =
+      await loadFixture(deployFixture);
+    const AMOUNT = parseEther('19');
+    await token.write.mint([user.account.address, AMOUNT]);
+    const permit = await buildPermit(
+      user as unknown as TestWallet,
+      token as unknown as PermitToken,
+      permitRouter.address,
+      AMOUNT,
+    );
+
+    const meta = [
+      {
+        balance: {
+          target: balanceProxy.address,
+          token: token.address,
+          balance: AMOUNT,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+
+    await permitRouter.write.permitProxyCallWithMeta(
+      [
+        balanceProxy.address,
+        meta,
+        [
+          {
+            balance: {
+              target: target.address,
+              token: token.address,
+              balance: AMOUNT,
+            },
+            useTransfer: false,
+          },
+        ],
+        [permit],
+        target.address,
+        '0x',
+        [],
+      ],
+      { account: user.account },
+    );
+
+    const proxyBal = await token.read.balanceOf([balanceProxy.address]);
+    expect(proxyBal).to.equal(AMOUNT);
+    const allowance = await token.read.allowance([
+      balanceProxy.address,
+      target.address,
+    ]);
+    expect(allowance).to.equal(AMOUNT);
+  });
+
+  it('permitProxyCallDiffsWithMeta: transfer mode sends tokens to EOA target', async () => {
+    const { user, token, other, balanceProxy, permitRouter } =
+      await loadFixture(deployFixture);
+    const AMOUNT = parseEther('13');
+    await token.write.mint([user.account.address, AMOUNT]);
+    const permit = await buildPermit(
+      user as unknown as TestWallet,
+      token as unknown as PermitToken,
+      permitRouter.address,
+      AMOUNT,
+    );
+
+    const meta = [
+      {
+        balance: {
+          target: other.account.address,
+          token: token.address,
+          balance: AMOUNT,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+
+    await permitRouter.write.permitProxyCallDiffsWithMeta(
+      [
+        balanceProxy.address,
+        meta,
+        [
+          {
+            balance: {
+              target: other.account.address,
+              token: token.address,
+              balance: AMOUNT,
+            },
+            useTransfer: true,
+          },
+        ],
+        [permit],
+        other.account.address,
+        '0x',
+        [],
+      ],
+      { account: user.account },
+    );
+
+    const targetBal = await token.read.balanceOf([other.account.address]);
+    expect(targetBal).to.equal(AMOUNT);
+  });
+
+  it('permitProxyCallWithMeta: reverts on PermitsLengthMismatch', async () => {
+    const { user, token, target, balanceProxy, permitRouter } =
+      await loadFixture(deployFixture);
+    const AMOUNT = parseEther('7');
+    await token.write.mint([user.account.address, AMOUNT]);
+
+    const meta = [
+      {
+        balance: {
+          target: balanceProxy.address,
+          token: token.address,
+          balance: AMOUNT,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+
+    await expect(
+      permitRouter.write.permitProxyCallWithMeta(
+        [
+          balanceProxy.address,
+          meta,
+          [
+            {
+              balance: {
+                target: target.address,
+                token: token.address,
+                balance: AMOUNT,
+              },
+              useTransfer: false,
+            },
+          ],
+          [], // permits empty => mismatch
+          target.address,
+          '0x',
+          [],
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('PermitsLengthMismatch');
+  });
+
+  it('permitProxyCallDiffsWithMeta: reverts on PermitsLengthMismatch', async () => {
+    const { user, token, other, balanceProxy, permitRouter } =
+      await loadFixture(deployFixture);
+    const AMOUNT = parseEther('5');
+    await token.write.mint([user.account.address, AMOUNT]);
+
+    const meta = [
+      {
+        balance: {
+          target: other.account.address,
+          token: token.address,
+          balance: AMOUNT,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+
+    await expect(
+      permitRouter.write.permitProxyCallDiffsWithMeta(
+        [
+          balanceProxy.address,
+          meta,
+          [
+            {
+              balance: {
+                target: other.account.address,
+                token: token.address,
+                balance: AMOUNT,
+              },
+              useTransfer: true,
+            },
+          ],
+          [], // permits empty => mismatch
+          other.account.address,
+          '0x',
+          [],
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('PermitsLengthMismatch');
+  });
+});
+
+describe('internal _balanceCheckCalldata via tester', () => {
+  it('covers ETH path (sufficient balance: no revert)', async () => {
+    const { owner, user } = await loadFixture(deployFixture);
+    // deploy tester
+    const tester = await viem.deployContract('BalanceProxyTester', [], {
+      client: { wallet: owner },
+    });
+    // fund user with a bit of ETH
+    await owner.sendTransaction({ to: user.account.address, value: 10n });
+    // call with token=address(0), target=user, expected <= actual
+    await tester.read.exposeBalanceCheckCalldata([
+      {
+        target: user.account.address,
+        token: '0x0000000000000000000000000000000000000000',
+        balance: 1n,
+      },
+    ]);
+  });
+
+  it('covers ETH path (insufficient balance: revert)', async () => {
+    const { owner } = await loadFixture(deployFixture);
+    const tester = await viem.deployContract('BalanceProxyTester', [], {
+      client: { wallet: owner },
+    });
+    // tester has 0 ETH; expect revert when requiring > 0
+    await expect(
+      tester.read.exposeBalanceCheckCalldata([
+        {
+          target: tester.address,
+          token: '0x0000000000000000000000000000000000000000',
+          balance: 1n,
+        },
+      ]),
+    ).to.be.rejectedWith('InsufficientBalance');
+  });
+
+  it('covers ERC20 path (insufficient balance: revert)', async () => {
+    const { owner, user, token } = await loadFixture(deployFixture);
+    const tester = await viem.deployContract('BalanceProxyTester', [], {
+      client: { wallet: owner },
+    });
+    await expect(
+      tester.read.exposeBalanceCheckCalldata([
+        {
+          target: user.account.address,
+          token: token.address,
+          balance: 1n, // user has 0 tokens
+        },
+      ]),
+    ).to.be.rejectedWith('InsufficientBalance');
+  });
+
+  it('covers ERC20 path (sufficient balance: no revert)', async () => {
+    const { owner, user, token } = await loadFixture(deployFixture);
+    const tester = await viem.deployContract('BalanceProxyTester', [], {
+      client: { wallet: owner },
+    });
+    // mint token to user so balance >= expected
+    await token.write.mint([user.account.address, 5n]);
+    await tester.read.exposeBalanceCheckCalldata([
+      {
+        target: user.account.address,
+        token: token.address,
+        balance: 1n,
+      },
+    ]);
+  });
+});
+
+describe('BalanceProxy core error paths', () => {
+  it('reverts on NegativeApprovalAmount via direct proxyCall', async () => {
+    const { user, balanceProxy, target } = await loadFixture(deployFixture);
+    await expect(
+      balanceProxy.write.proxyCall(
+        [
           [],
           [
             {
               balance: {
-                balance: amount,
-                target: other.account.address,
-                token: erc20.address,
+                target: target.address,
+                token: '0x0000000000000000000000000000000000000000',
+                balance: -1n,
               },
-              symbol: 'WRONG',
-              decimals: 18,
+              useTransfer: false,
             },
           ],
-          createEmptyPermits(1),
-          [false], // useTransferFlags
-          erc20.address,
-          data,
+          target.address,
+          '0x',
           [],
-        ]),
-      ).to.be.rejectedWith('InvalidMetadata');
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('NegativeApprovalAmount');
+  });
+
+  it('reverts UnexpectedBalanceDiff when expected diff not met', async () => {
+    const { user, balanceProxy, target } = await loadFixture(deployFixture);
+    await expect(
+      balanceProxy.write.proxyCallDiffs(
+        [
+          [
+            {
+              target: balanceProxy.address,
+              token: '0x0000000000000000000000000000000000000000',
+              balance: 1n,
+            },
+          ],
+          [],
+          target.address,
+          '0x',
+          [],
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('UnexpectedBalanceDiff');
+  });
+
+  it('reverts when ETH withdrawal cannot be paid (negative withdrawal from empty proxy)', async () => {
+    const { user, other, balanceProxy } = await loadFixture(deployFixture);
+    // Call succeeds (EOA target), then withdrawal tries to send 1 wei from proxy (has 0) => revert
+    await expect(
+      balanceProxy.write.proxyCall(
+        [
+          [],
+          [],
+          other.account.address,
+          '0x',
+          [
+            {
+              target: user.account.address,
+              token: '0x0000000000000000000000000000000000000000',
+              balance: -1n,
+            },
+          ],
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejected;
+  });
+
+  it('reverts on reentrancy (nonReentrant guard)', async () => {
+    const { owner, user, balanceProxy } = await loadFixture(deployFixture);
+    const reenter = await viem.deployContract(
+      'ReenterTargetMock',
+      [balanceProxy.address],
+      {
+        client: { wallet: owner },
+      },
+    );
+    const attackData = encodeFunctionData({
+      abi: reenterAbi,
+      functionName: 'attack',
+      args: [],
     });
-
-    it('should fail if metadata decimals is wrong', async function () {
-      const { balanceProxy, erc20, owner, other } =
-        await loadFixture(deployFixture);
-
-      const amount = parseEther('1');
-      await erc20.write.mint([owner.account.address, amount]);
-      await erc20.write.approve([balanceProxy.address, amount]);
-
-      const data = encodeTransfer(other.account.address, amount);
-
-      await expect(
-        balanceProxy.write.permitAndProxyCallMetadataCalldata([
+    await expect(
+      balanceProxy.write.proxyCall(
+        [
+          [], // postBalances
+          [], // approvals
+          reenter.address,
+          attackData,
           [],
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('CallFailed');
+  });
+
+  it('reverts on reentrancy in proxyCallDiffs (nonReentrant guard)', async () => {
+    const { owner, user, balanceProxy } = await loadFixture(deployFixture);
+    const reenter = await viem.deployContract(
+      'ReenterDiffsTargetMock',
+      [balanceProxy.address],
+      {
+        client: { wallet: owner },
+      },
+    );
+    const attackData = encodeFunctionData({
+      abi: reenterAbi,
+      functionName: 'attack',
+      args: [],
+    });
+    await expect(
+      balanceProxy.write.proxyCallDiffs(
+        [
+          [], // diffs
+          [], // approvals
+          reenter.address,
+          attackData,
+          [],
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('CallFailed');
+  });
+});
+
+describe('BalanceProxy meta variants', () => {
+  it('proxyCallMeta succeeds with ERC20 post balance check', async () => {
+    const { owner, user, token, balanceProxy, target } =
+      await loadFixture(deployFixture);
+    const AMT = parseEther('11');
+    // Mint tokens directly to proxy so expected absolute post balance matches
+    await token.write.mint([balanceProxy.address, AMT], {
+      account: owner.account,
+    });
+    const meta = [
+      {
+        balance: {
+          target: balanceProxy.address,
+          token: token.address as `0x${string}`,
+          balance: AMT,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+    await balanceProxy.write.proxyCallMeta(
+      [
+        meta,
+        [], // approvals
+        target.address,
+        '0x',
+        [], // withdrawals
+      ],
+      { account: user.account },
+    );
+    const proxyBal = await token.read.balanceOf([balanceProxy.address]);
+    expect(proxyBal).to.equal(AMT);
+  });
+
+  it('proxyCallMeta reverts InsufficientBalance when expected > actual', async () => {
+    const { user, token, balanceProxy, target } =
+      await loadFixture(deployFixture);
+    const AMT = parseEther('3');
+    // no mint -> proxy has 0 tokens
+    const meta = [
+      {
+        balance: {
+          target: balanceProxy.address,
+          token: token.address as `0x${string}`,
+          balance: AMT, // expect more than actual => revert
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+    await expect(
+      balanceProxy.write.proxyCallMeta([meta, [], target.address, '0x', []], {
+        account: user.account,
+      }),
+    ).to.be.rejectedWith('InsufficientBalance');
+  });
+
+  it('proxyCallDiffsMeta succeeds with zero expected diff', async () => {
+    const { user, balanceProxy, target } = await loadFixture(deployFixture);
+    const meta = [
+      {
+        balance: {
+          target: balanceProxy.address,
+          token: '0x0000000000000000000000000000000000000000',
+          balance: 0n, // expect no change
+        },
+        symbol: 'ETH',
+        decimals: 18,
+      },
+    ];
+    await balanceProxy.write.proxyCallDiffsMeta(
+      [meta, [], target.address, '0x', []],
+      { account: user.account },
+    );
+  });
+
+  it('proxyCallDiffsMeta reverts UnexpectedBalanceDiff when diff unmet', async () => {
+    const { user, balanceProxy, target } = await loadFixture(deployFixture);
+    const meta = [
+      {
+        balance: {
+          target: balanceProxy.address,
+          token: '0x0000000000000000000000000000000000000000',
+          balance: 1n, // expect +1 wei increase
+        },
+        symbol: 'ETH',
+        decimals: 18,
+      },
+    ];
+    await expect(
+      balanceProxy.write.proxyCallDiffsMeta(
+        [meta, [], target.address, '0x', []],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('UnexpectedBalanceDiff');
+  });
+
+  // Helper type for metadata to satisfy viem strict address template typing
+  type Meta = {
+    balance: { target: `0x${string}`; token: `0x${string}`; balance: bigint };
+    symbol: string;
+    decimals: number;
+  };
+
+  it('proxyCallMeta approval path sets allowance (useTransfer=false)', async () => {
+    const { owner, user, token, balanceProxy, target } =
+      await loadFixture(deployFixture);
+    const AMT = parseEther('8');
+    // Mint to proxy so it holds tokens used for approval
+    await token.write.mint([balanceProxy.address, AMT], {
+      account: owner.account,
+    });
+    const meta: Meta[] = [
+      {
+        balance: {
+          target: balanceProxy.address as `0x${string}`,
+          token: token.address as `0x${string}`,
+          balance: AMT,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+    await balanceProxy.write.proxyCallMeta(
+      [
+        meta,
+        [
+          {
+            balance: {
+              target: target.address,
+              token: token.address,
+              balance: AMT,
+            },
+            useTransfer: false,
+          },
+        ],
+        target.address,
+        '0x',
+        [],
+      ],
+      { account: user.account },
+    );
+    const allowance = await token.read.allowance([
+      balanceProxy.address,
+      target.address,
+    ]);
+    expect(allowance).to.equal(AMT);
+  });
+
+  it('proxyCallMeta transfer path moves tokens (useTransfer=true)', async () => {
+    const { owner, user, token, balanceProxy, target } =
+      await loadFixture(deployFixture);
+    const AMT = parseEther('9');
+    await token.write.mint([balanceProxy.address, AMT], {
+      account: owner.account,
+    });
+    const meta: Meta[] = [
+      {
+        balance: {
+          target: target.address as `0x${string}`,
+          token: token.address as `0x${string}`,
+          balance: AMT,
+        }, // after transfer + no other changes target must have AMT
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+    await balanceProxy.write.proxyCallMeta(
+      [
+        meta,
+        [
+          {
+            balance: {
+              target: target.address,
+              token: token.address,
+              balance: AMT,
+            },
+            useTransfer: true,
+          },
+        ],
+        target.address,
+        '0x',
+        [],
+      ],
+      { account: user.account },
+    );
+    const targetBal = await token.read.balanceOf([target.address]);
+    expect(targetBal).to.equal(AMT);
+  });
+
+  it('proxyCallMeta reverts MaliciousApproveTarget when approval target mismatch', async () => {
+    const { owner, user, token, balanceProxy, target, other } =
+      await loadFixture(deployFixture);
+    const AMT = parseEther('4');
+    await token.write.mint([balanceProxy.address, AMT], {
+      account: owner.account,
+    });
+    const meta: Meta[] = [
+      {
+        balance: {
+          target: balanceProxy.address as `0x${string}`,
+          token: token.address as `0x${string}`,
+          balance: AMT,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+    await expect(
+      balanceProxy.write.proxyCallMeta(
+        [
+          meta,
           [
             {
               balance: {
-                balance: amount,
                 target: other.account.address,
-                token: erc20.address,
-              },
-              symbol: 'MTK',
-              decimals: 6,
+                token: token.address,
+                balance: AMT,
+              }, // differs from call target
+              useTransfer: false,
             },
           ],
-          createEmptyPermits(1),
-          [false], // useTransferFlags
-          erc20.address,
-          data,
+          target.address,
+          '0x',
           [],
-        ]),
-      ).to.be.rejectedWith('InvalidMetadata');
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('MaliciousApproveTarget');
+  });
+
+  it('proxyCallMeta reverts NegativeApprovalAmount (<0)', async () => {
+    const { user, balanceProxy, target } = await loadFixture(deployFixture);
+    const meta: Meta[] = [
+      {
+        balance: {
+          target: balanceProxy.address as `0x${string}`,
+          token: '0x0000000000000000000000000000000000000000',
+          balance: 0n,
+        },
+        symbol: 'ETH',
+        decimals: 18,
+      },
+    ];
+    await expect(
+      balanceProxy.write.proxyCallMeta(
+        [
+          meta,
+          [
+            {
+              balance: {
+                target: target.address,
+                token: '0x0000000000000000000000000000000000000000',
+                balance: -1n,
+              },
+              useTransfer: false,
+            },
+          ],
+          target.address,
+          '0x',
+          [],
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('NegativeApprovalAmount');
+  });
+
+  it('proxyCallMeta reverts CallFailed for bad function selector', async () => {
+    const { owner, user, token, balanceProxy, target } =
+      await loadFixture(deployFixture);
+    const AMT = parseEther('2');
+    await token.write.mint([balanceProxy.address, AMT], {
+      account: owner.account,
     });
+    const meta: Meta[] = [
+      {
+        balance: {
+          target: balanceProxy.address as `0x${string}`,
+          token: token.address as `0x${string}`,
+          balance: AMT,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+    // invalid function selector (random 4 bytes) should revert
+    const badData = '0xdeadbeef';
+    await expect(
+      balanceProxy.write.proxyCallMeta(
+        [meta, [], target.address, badData, []],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('CallFailed');
+  });
+
+  it('proxyCallDiffsMeta positive diff success (token increase)', async () => {
+    const { user, token, balanceProxy, target } =
+      await loadFixture(deployFixture);
+    const TAKE = parseEther('5');
+    const GIVE = parseEther('7');
+    // Mint TAKE to proxy so it can spend it (transferFrom inside TargetMock)
+    await token.write.mint([balanceProxy.address, TAKE], {
+      account: user.account,
+    });
+    const meta: Meta[] = [
+      {
+        balance: {
+          target: balanceProxy.address as `0x${string}`,
+          token: token.address as `0x${string}`,
+          balance: GIVE - TAKE,
+        }, // expected net diff
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+    await balanceProxy.write.proxyCallDiffsMeta(
+      [
+        meta,
+        [
+          {
+            balance: {
+              target: target.address,
+              token: token.address,
+              balance: TAKE,
+            },
+            useTransfer: false,
+          },
+        ],
+        target.address,
+        encodeMint(TAKE, GIVE),
+        [],
+      ],
+      { account: user.account },
+    );
+    const finalBal = await token.read.balanceOf([balanceProxy.address]);
+    expect(finalBal).to.equal(GIVE); // started with TAKE, ended with GIVE
+  });
+
+  it('proxyCallDiffsMeta negative diff success (token decrease)', async () => {
+    const { user, token, balanceProxy, target } =
+      await loadFixture(deployFixture);
+    const TAKE = parseEther('6');
+    const GIVE = parseEther('2');
+    await token.write.mint([balanceProxy.address, TAKE], {
+      account: user.account,
+    });
+    // Expected diff is GIVE - TAKE (negative)
+    const expectedDiff = GIVE - TAKE; // < 0
+    const meta: Meta[] = [
+      {
+        balance: {
+          target: balanceProxy.address as `0x${string}`,
+          token: token.address as `0x${string}`,
+          balance: expectedDiff,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+    await balanceProxy.write.proxyCallDiffsMeta(
+      [
+        meta,
+        [
+          {
+            balance: {
+              target: target.address,
+              token: token.address,
+              balance: TAKE,
+            },
+            useTransfer: false,
+          },
+        ],
+        target.address,
+        encodeMint(TAKE, GIVE),
+        [],
+      ],
+      { account: user.account },
+    );
+    const finalBal = await token.read.balanceOf([balanceProxy.address]);
+    expect(finalBal).to.equal(GIVE);
+  });
+
+  it('proxyCallDiffsMeta reverts UnexpectedBalanceDiff for unmet negative expected diff', async () => {
+    const { user, token, balanceProxy, target } =
+      await loadFixture(deployFixture);
+    const TAKE = parseEther('5');
+    const GIVE = parseEther('2'); // actual net diff = GIVE - TAKE = -3
+    await token.write.mint([balanceProxy.address, TAKE], {
+      account: user.account,
+    });
+    const expectedDiff = -2n; // require diff >= -2, but actual is -3 (< -2) => revert
+    const meta: Meta[] = [
+      {
+        balance: {
+          target: balanceProxy.address as `0x${string}`,
+          token: token.address as `0x${string}`,
+          balance: expectedDiff,
+        },
+        symbol: 'MTK',
+        decimals: 18,
+      },
+    ];
+    await expect(
+      balanceProxy.write.proxyCallDiffsMeta(
+        [
+          meta,
+          [
+            {
+              balance: {
+                target: target.address,
+                token: token.address,
+                balance: TAKE,
+              },
+              useTransfer: false,
+            },
+          ],
+          target.address,
+          encodeMint(TAKE, GIVE),
+          [],
+        ],
+        { account: user.account },
+      ),
+    ).to.be.rejectedWith('UnexpectedBalanceDiff');
   });
 });
