@@ -637,20 +637,6 @@ metadata.forEach(m => {
 - Minimize number of balance checks
 - Use transfer mode when possible (cheaper than approve)
 
-## Audit Status
-
-🔒 **Security**: This code is currently unaudited. Use at your own risk.
-
-**Recommended audits**:
-- [ ] Formal verification of balance validation logic
-- [ ] Reentrancy attack testing
-- [ ] Permit signature replay protection
-- [ ] Gas optimization review
-
-## Learn more
-
-The guides in the [documentation site](https://eip-xxxx-doc.ilya-kubariev.workers.dev/docs/intro) will teach about different concepts, and how to use the related contracts that EIP-8009 provides.
-
 ## Contribute
 
 EIP-8009 Contracts exists thanks to its contributors. There are many ways you can participate and help build high quality software:
@@ -666,7 +652,6 @@ Check out the [contribution guide](CONTRIBUTING.md) for more details!
 ## Related Projects
 
 - **[EIP-8009 Frontend](https://github.com/RedDuck-Software/eip-8009-front)**: React dApp for interacting with these contracts
-- **[Universal Router Integration](https://github.com/Uniswap/universal-router)**: Example integration with Uniswap
 
 ## License
 
