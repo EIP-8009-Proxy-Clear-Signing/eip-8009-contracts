@@ -2,7 +2,6 @@
 pragma solidity ^0.8.27;
 
 import {IBalanceProxy} from "./interfaces/IBalanceProxy.sol";
-import {IPermitRouter} from "./interfaces/IPermitRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC20Permit, PermitData} from "./interfaces/IPermit.sol";
@@ -10,11 +9,25 @@ import {BalanceMetadata} from "./interfaces/IMetadata.sol";
 
 /// @title PermitRouter
 /// @notice Handles permit + pull tokens then delegates to BalanceProxy core
-contract PermitRouter is IPermitRouter {
+contract PermitRouter {
     /// @notice Error thrown when metadata and balances array lengths don't match
     error MetadataBalancesLengthMismatch(
         uint256 metaLength,
         uint256 balancesLength
+    );
+
+    /// @notice Error thrown when permits array length doesn't match approvals array length
+    /// @param permitsLength The length of the permits array
+    /// @param approvalsLength The length of the approvals array
+    error PermitsLengthMismatch(uint256 permitsLength, uint256 approvalsLength);
+
+    /// @notice Error thrown when metadata doesn't match actual token properties
+    error InvalidMetadata(
+        address token,
+        string expectedSymbol,
+        uint8 expectedDecimals,
+        string actualSymbol,
+        uint8 actualDecimals
     );
 
     /// @dev Internal function to validate metadata matches actual token properties
@@ -45,7 +58,7 @@ contract PermitRouter is IPermitRouter {
                 keccak256(abi.encodePacked(meta[i].symbol)) ||
                 actualDecimals != meta[i].decimals
             ) {
-                revert IBalanceProxy.InvalidMetadata(
+                revert InvalidMetadata(
                     balances[i].token,
                     meta[i].symbol,
                     meta[i].decimals,
