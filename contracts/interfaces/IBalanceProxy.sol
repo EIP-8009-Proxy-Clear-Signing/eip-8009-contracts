@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.27;
 
-import {BalanceMetadata} from "./IMetadata.sol";
-
 /// @title IBalanceProxy
 /// @notice Minimal interface for the BalanceProxy core contract
 /// @dev Core is dumb: it never pulls tokens, only uses its own balances
@@ -48,15 +46,6 @@ interface IBalanceProxy {
     /// @notice Error thrown when an approval amount is negative
     error NegativeApprovalAmount(int256 amount);
 
-    /// @notice Error thrown when metadata doesn't match actual token properties
-    error InvalidMetadata(
-        address token,
-        string expectedSymbol,
-        uint8 expectedDecimals,
-        string actualSymbol,
-        uint8 actualDecimals
-    );
-
     /// @notice Proxy call to a target contract with specified post-balance checks
     function proxyCall(
         Balance[] memory postBalances,
@@ -69,24 +58,6 @@ interface IBalanceProxy {
     /// @notice Proxy call with balance diffs
     function proxyCallDiffs(
         Balance[] memory diffs,
-        Approval[] memory approvals,
-        address target,
-        bytes memory data,
-        Balance[] memory withdrawals
-    ) external payable returns (bytes memory);
-
-    /// @notice Proxy call with metadata (absolute balances)
-    function proxyCallMeta(
-        BalanceMetadata[] memory meta,
-        Approval[] memory approvals,
-        address target,
-        bytes memory data,
-        Balance[] memory withdrawals
-    ) external payable returns (bytes memory);
-
-    /// @notice Proxy call with metadata diffs
-    function proxyCallDiffsMeta(
-        BalanceMetadata[] memory meta,
         Approval[] memory approvals,
         address target,
         bytes memory data,

@@ -2,9 +2,7 @@
 pragma solidity ^0.8.27;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IBalanceProxy} from "./interfaces/IBalanceProxy.sol";
-import {BalanceMetadata} from "./interfaces/IMetadata.sol";
 import {SignedMath} from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -138,107 +136,6 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
                 );
         }
         return result;
-    }
-
-    /// @notice Proxy call to a target contract with metadata
-    /// @dev Validates metadata (symbol/decimals) against actual token properties
-    function proxyCallMeta(
-        BalanceMetadata[] memory meta,
-        Approval[] memory approvals,
-        address target,
-        bytes memory data,
-        Balance[] memory withdrawals
-    ) external payable nonReentrant returns (bytes memory) {
-        uint256 i;
-        // Validate all metadata first
-        for (i = 0; i < meta.length; i++) {
-            _checkMetadata(meta[i]);
-        }
-        for (i = 0; i < approvals.length; i++) {
-            _applyApproval(approvals[i], target);
-        }
-        (bool success, bytes memory result) = target.call{value: msg.value}(
-            data
-        );
-        if (!success) revert CallFailed(target, data, result);
-        for (i = 0; i < withdrawals.length; i++) {
-            _transfer(withdrawals[i]);
-        }
-        for (i = 0; i < meta.length; i++) {
-            _balanceCheck(meta[i].balance);
-        }
-        return result;
-    }
-
-    /// @notice Proxy call with balance diffs provided in metadata
-    /// @dev Validates metadata (symbol/decimals) against actual token properties
-    function proxyCallDiffsMeta(
-        BalanceMetadata[] memory meta,
-        Approval[] memory approvals,
-        address target,
-        bytes memory data,
-        Balance[] memory withdrawals
-    ) external payable nonReentrant returns (bytes memory) {
-        uint256 i;
-        uint256 len = meta.length;
-        // Validate all metadata first
-        for (i = 0; i < len; i++) {
-            _checkMetadata(meta[i]);
-        }
-        uint256[] memory before = new uint256[](len);
-        for (i = 0; i < len; i++) {
-            IBalanceProxy.Balance memory b = meta[i].balance;
-            before[i] = _currentBalance(b.token, b.target);
-        }
-        for (i = 0; i < approvals.length; i++)
-            _applyApproval(approvals[i], target);
-        (bool success, bytes memory result) = target.call{value: msg.value}(
-            data
-        );
-        if (!success) revert CallFailed(target, data, result);
-        for (i = 0; i < withdrawals.length; i++) _transfer(withdrawals[i]);
-        for (i = 0; i < len; i++) {
-            IBalanceProxy.Balance memory b2 = meta[i].balance;
-            uint256 afterBal = _currentBalance(b2.token, b2.target);
-            int256 actualDiff = int256(afterBal) - int256(before[i]);
-            if (actualDiff < b2.balance)
-                revert UnexpectedBalanceDiff(
-                    b2.token,
-                    b2.target,
-                    b2.balance,
-                    actualDiff
-                );
-        }
-        return result;
-    }
-
-    /// @dev Internal function to validate metadata matches actual token properties
-    /// @param meta Metadata to validate
-    function _checkMetadata(BalanceMetadata memory meta) internal view {
-        string memory actualSymbol;
-        uint8 actualDecimals;
-
-        if (meta.balance.token == address(0)) {
-            actualSymbol = "ETH";
-            actualDecimals = 18;
-        } else {
-            actualSymbol = IERC20Metadata(meta.balance.token).symbol();
-            actualDecimals = IERC20Metadata(meta.balance.token).decimals();
-        }
-
-        if (
-            keccak256(abi.encodePacked(actualSymbol)) !=
-            keccak256(abi.encodePacked(meta.symbol)) ||
-            actualDecimals != meta.decimals
-        ) {
-            revert InvalidMetadata(
-                meta.balance.token,
-                meta.symbol,
-                meta.decimals,
-                actualSymbol,
-                actualDecimals
-            );
-        }
     }
 
     receive() external payable {}
