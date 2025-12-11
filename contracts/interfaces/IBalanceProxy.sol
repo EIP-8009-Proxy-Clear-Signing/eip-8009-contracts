@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.27;
 
-import {BalanceMetadata} from "./IMetadata.sol";
-
 /// @title IBalanceProxy
 /// @notice Minimal interface for the BalanceProxy core contract
 /// @dev Core is dumb: it never pulls tokens, only uses its own balances

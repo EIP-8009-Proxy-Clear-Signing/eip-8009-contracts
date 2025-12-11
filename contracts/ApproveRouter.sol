@@ -10,6 +10,12 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 /// @title ApproveRouter
 /// @notice Handles allowance + pull tokens then delegates to BalanceProxy core
 contract ApproveRouter is IApproveRouter {
+    /// @notice Error thrown when metadata and balances array lengths don't match
+    error MetadataBalancesLengthMismatch(
+        uint256 metaLength,
+        uint256 balancesLength
+    );
+
     /// @dev Internal function to validate metadata matches actual token properties
     /// @param meta Metadata array to validate
     /// @param balances Corresponding balances array
@@ -17,10 +23,9 @@ contract ApproveRouter is IApproveRouter {
         BalanceMetadata[] memory meta,
         IBalanceProxy.Balance[] memory balances
     ) internal view {
-        require(
-            meta.length == balances.length,
-            "Metadata and balances length mismatch"
-        );
+        if (meta.length != balances.length) {
+            revert MetadataBalancesLengthMismatch(meta.length, balances.length);
+        }
 
         for (uint256 i = 0; i < meta.length; i++) {
             string memory actualSymbol;
