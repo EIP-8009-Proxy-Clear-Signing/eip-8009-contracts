@@ -1,19 +1,17 @@
 # Contributing Guidelines
 
-There are many ways to contribute to EIP-XXXX Contracts.
+There are many ways to contribute to EIP-8009 Contracts.
 
 ## Opening an issue
 
 You can [open an issue] to suggest a feature or report a minor bug. For serious bugs please do not open an issue, instead refer to our [security policy] for appropriate steps.
 
-If you believe your issue may be due to user error and not a problem in the library, consider instead posting a question on the [OpenZeppelin Forum].
-
 Before opening an issue, be sure to search through the existing open and closed issues, and consider posting a comment in one of those instead.
 
 When requesting a new feature, include as many details as you can, especially around the use cases that motivate it. Features are prioritized according to the impact they may have on the ecosystem, so we appreciate information showing that the impact could be high.
 
-[security policy]: https://github.com/RedDuck-Software/eip-xxxx-contracts/security
-[open an issue]: https://github.com/RedDuck-Software/eip-xxxx-contracts/issues/new/choose
+[security policy]: https://github.com/EIP-8009-Proxy-Clear-Signing/eip-8009-contracts/security
+[open an issue]: https://github.com/EIP-8009-Proxy-Clear-Signing/eip-8009-contracts/issues/new/choose
 
 ## Submitting a pull request
 
