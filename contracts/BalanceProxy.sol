@@ -17,7 +17,7 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
             ? balance.target.balance
             : IERC20(balance.token).balanceOf(balance.target);
         if (actual < SignedMath.abs(balance.balance)) {
-            revert InsufficientBalance(
+            revert ERC8009BalanceConstraintViolation(
                 balance.token,
                 balance.target,
                 balance.balance,
@@ -33,7 +33,7 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
             ? balance.target.balance
             : IERC20(balance.token).balanceOf(balance.target);
         if (actual < SignedMath.abs(balance.balance)) {
-            revert InsufficientBalance(
+            revert ERC8009BalanceConstraintViolation(
                 balance.token,
                 balance.target,
                 balance.balance,
@@ -43,16 +43,8 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
     }
 
     /// @dev Internal function to apply approval instruction (memory)
-    function _applyApproval(
-        Approval memory approval,
-        address callTarget
-    ) internal {
+    function _applyApproval(Approval memory approval) internal {
         Balance memory bal = approval.balance;
-        // Guard: approval must be for the same target we are about to call
-        if (bal.target != callTarget)
-            revert MaliciousApproveTarget(bal.token, bal.target);
-        // Guard: amount must be non-negative (Approval uses uint when executing)
-        if (bal.balance < 0) revert NegativeApprovalAmount(bal.balance);
         uint256 amount = uint256(bal.balance);
         if (approval.useTransfer) {
             IERC20(bal.token).transfer(bal.target, amount);
@@ -90,12 +82,12 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
     ) external payable override nonReentrant returns (bytes memory) {
         uint256 i;
         for (i = 0; i < approvals.length; i++) {
-            _applyApproval(approvals[i], target);
+            _applyApproval(approvals[i]);
         }
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
         );
-        if (!success) revert CallFailed(target, data, result);
+        if (!success) revert ERC8009CallFailed(target, data, result);
         for (i = 0; i < withdrawals.length; i++) {
             _transfer(withdrawals[i]);
         }
@@ -117,18 +109,17 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         uint256[] memory before = new uint256[](len);
         for (i = 0; i < len; i++)
             before[i] = _currentBalance(diffs[i].token, diffs[i].target);
-        for (i = 0; i < approvals.length; i++)
-            _applyApproval(approvals[i], target);
+        for (i = 0; i < approvals.length; i++) _applyApproval(approvals[i]);
         (bool success, bytes memory result) = target.call{value: msg.value}(
             data
         );
-        if (!success) revert CallFailed(target, data, result);
+        if (!success) revert ERC8009CallFailed(target, data, result);
         for (i = 0; i < withdrawals.length; i++) _transfer(withdrawals[i]);
         for (i = 0; i < len; i++) {
             uint256 afterBal = _currentBalance(diffs[i].token, diffs[i].target);
             int256 actualDiff = int256(afterBal) - int256(before[i]);
             if (actualDiff < diffs[i].balance)
-                revert UnexpectedBalanceDiff(
+                revert ERC8009BalanceDiffConstraintViolation(
                     diffs[i].token,
                     diffs[i].target,
                     diffs[i].balance,

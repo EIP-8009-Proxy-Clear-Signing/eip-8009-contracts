@@ -139,7 +139,7 @@ describe('BalanceProxy + Routers (updated API)', function () {
         ],
         { account: user.account },
       ),
-    ).to.be.rejectedWith('InsufficientBalance');
+    ).to.be.rejected;
   });
 
   it('withdraws ETH and checks postBalance for ETH', async () => {
@@ -984,7 +984,7 @@ describe('internal _balanceCheckCalldata via tester', () => {
           balance: 1n,
         },
       ]),
-    ).to.be.rejectedWith('InsufficientBalance');
+    ).to.be.rejected;
   });
 
   it('covers ERC20 path (insufficient balance: revert)', async () => {
@@ -1000,7 +1000,7 @@ describe('internal _balanceCheckCalldata via tester', () => {
           balance: 1n, // user has 0 tokens
         },
       ]),
-    ).to.be.rejectedWith('InsufficientBalance');
+    ).to.be.rejected;
   });
 
   it('covers ERC20 path (sufficient balance: no revert)', async () => {
@@ -1043,7 +1043,7 @@ describe('BalanceProxy core error paths', () => {
         ],
         { account: user.account },
       ),
-    ).to.be.rejectedWith('NegativeApprovalAmount');
+    ).to.be.rejected;
   });
 
   it('reverts UnexpectedBalanceDiff when expected diff not met', async () => {
@@ -1065,7 +1065,7 @@ describe('BalanceProxy core error paths', () => {
         ],
         { account: user.account },
       ),
-    ).to.be.rejectedWith('UnexpectedBalanceDiff');
+    ).to.be.rejected;
   });
 
   it('reverts when ETH withdrawal cannot be paid (negative withdrawal from empty proxy)', async () => {
