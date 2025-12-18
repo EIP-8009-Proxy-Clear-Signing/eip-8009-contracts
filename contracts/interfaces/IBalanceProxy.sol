@@ -22,7 +22,7 @@ interface IBalanceProxy {
     }
 
     /// @notice Error when actual diff != expected
-    error UnexpectedBalanceDiff(
+    error ERC8009BalanceDiffConstraintViolation(
         address token,
         address target,
         int256 expected,
@@ -30,7 +30,7 @@ interface IBalanceProxy {
     );
 
     /// @notice Error thrown when a balance is insufficient
-    error InsufficientBalance(
+    error ERC8009BalanceConstraintViolation(
         address token,
         address target,
         int256 balance,
@@ -38,13 +38,7 @@ interface IBalanceProxy {
     );
 
     /// @notice Error thrown when a call fails
-    error CallFailed(address target, bytes data, bytes returnData);
-
-    /// @notice Error thrown when trying to approve/transfer to an address other than callTarget
-    error MaliciousApproveTarget(address token, address target);
-
-    /// @notice Error thrown when an approval amount is negative
-    error NegativeApprovalAmount(int256 amount);
+    error ERC8009CallFailed(address target, bytes data, bytes returnData);
 
     /// @notice Proxy call to a target contract with specified post-balance checks
     function proxyCall(
