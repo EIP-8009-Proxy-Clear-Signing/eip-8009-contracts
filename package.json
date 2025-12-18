@@ -1,5 +1,5 @@
 {
-  "name": "eip-xxxx-contracts",
+  "name": "eip-8009-contracts",
   "description": "Singleton, stateless contract that proxies arbitrary smart-contract calls and enforces user-supplied outcome constraints.",
   "version": "0.0.1",
   "license": "MIT",
@@ -53,19 +53,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/RedDuck-Software/eip-xxxx-contracts.git"
+    "url": "https://github.com/EIP-8009-Proxy-Clear-Signing/eip-8009-contracts.git"
   },
   "author": "RedDuck Software <contact@redduck.io>",
   "bugs": {
-    "url": "https://github.com/RedDuck-Software/eip-xxxx-contracts/issues"
+    "url": "https://github.com/EIP-8009-Proxy-Clear-Signing/eip-8009-contracts/issues"
   },
-  "homepage": "https://github.com/RedDuck-Software/eip-xxxx-contracts#readme",
+  "homepage": "https://github.com/EIP-8009-Proxy-Clear-Signing/eip-8009-contracts#readme",
   "keywords": [
     "solidity",
     "ethereum",
     "smart-contracts",
     "proxy",
     "balance-proxy",
-    "eip-xxxx"
+    "eip-8009"
   ]
 }
