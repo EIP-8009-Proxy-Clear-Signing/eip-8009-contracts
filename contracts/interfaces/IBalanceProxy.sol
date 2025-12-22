@@ -3,7 +3,7 @@ pragma solidity ^0.8.27;
 
 /// @title IBalanceProxy
 /// @notice Minimal interface for the BalanceProxy core contract
-/// @dev Core is dumb: it never pulls tokens, only uses its own balances
+/// @dev Core is source-agnostic: it never pulls tokens, only uses its own balances
 interface IBalanceProxy {
     /// @notice Struct to represent balance or value of specific token by target address
     /// @param target Target address
