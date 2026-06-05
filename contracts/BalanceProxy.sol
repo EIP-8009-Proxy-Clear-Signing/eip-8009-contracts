@@ -3,6 +3,7 @@ pragma solidity ^0.8.27;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IBalanceProxy} from "./interfaces/IBalanceProxy.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {SignedMath} from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -73,6 +74,16 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         return token == address(0) ? who.balance : IERC20(token).balanceOf(who);
     }
 
+    function _signedDiff(
+        uint256 afterBalance,
+        uint256 beforeBalance
+    ) internal pure returns (int256) {
+        if (afterBalance >= beforeBalance) {
+            return SafeCast.toInt256(afterBalance - beforeBalance);
+        }
+        return -SafeCast.toInt256(beforeBalance - afterBalance);
+    }
+
     function proxyCall(
         Balance[] memory postBalances,
         Approval[] memory approvals,
@@ -84,10 +95,12 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         for (i = 0; i < approvals.length; i++) {
             _applyApproval(approvals[i]);
         }
-        (bool success, bytes memory result) = target.call{value: msg.value}(
-            data
-        );
-        if (!success) revert ERC8009CallFailed(target, data, result);
+        bytes memory result;
+        if (target != address(0) || data.length > 0 || msg.value > 0) {
+            bool success;
+            (success, result) = target.call{value: msg.value}(data);
+            if (!success) revert ERC8009CallFailed(target, data, result);
+        }
         for (i = 0; i < withdrawals.length; i++) {
             _transfer(withdrawals[i]);
         }
@@ -110,14 +123,16 @@ contract BalanceProxy is IBalanceProxy, ReentrancyGuard {
         for (i = 0; i < len; i++)
             before[i] = _currentBalance(diffs[i].token, diffs[i].target);
         for (i = 0; i < approvals.length; i++) _applyApproval(approvals[i]);
-        (bool success, bytes memory result) = target.call{value: msg.value}(
-            data
-        );
-        if (!success) revert ERC8009CallFailed(target, data, result);
+        bytes memory result;
+        if (target != address(0) || data.length > 0 || msg.value > 0) {
+            bool success;
+            (success, result) = target.call{value: msg.value}(data);
+            if (!success) revert ERC8009CallFailed(target, data, result);
+        }
         for (i = 0; i < withdrawals.length; i++) _transfer(withdrawals[i]);
         for (i = 0; i < len; i++) {
             uint256 afterBal = _currentBalance(diffs[i].token, diffs[i].target);
-            int256 actualDiff = int256(afterBal) - int256(before[i]);
+            int256 actualDiff = _signedDiff(afterBal, before[i]);
             if (actualDiff < diffs[i].balance)
                 revert ERC8009BalanceDiffConstraintViolation(
                     diffs[i].token,
