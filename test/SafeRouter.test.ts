@@ -7,7 +7,9 @@ import {
   encodeFunctionData,
   padHex,
   parseEther,
+  type Abi,
   type Address,
+  type GetContractReturnType,
   type Hex,
   zeroAddress,
 } from 'viem';
@@ -107,7 +109,10 @@ function approvedHashSignatures(owners: Address[]): Hex {
     .join('')}` as Hex;
 }
 
-async function getSafeTxHash(safe: any, tx: SafeTx): Promise<Hex> {
+async function getSafeTxHash(
+  safe: GetContractReturnType<Abi>,
+  tx: SafeTx,
+): Promise<Hex> {
   const nonce = await safe.read.nonce();
   return await safe.read.getTransactionHash([
     tx.to,
@@ -124,7 +129,7 @@ async function getSafeTxHash(safe: any, tx: SafeTx): Promise<Hex> {
 }
 
 async function safeTxWithApprovals(
-  safe: any,
+  safe: GetContractReturnType<Abi>,
   tx: SafeTx,
   router: Address,
   owners: Array<{ account: { address: Address } }>,
