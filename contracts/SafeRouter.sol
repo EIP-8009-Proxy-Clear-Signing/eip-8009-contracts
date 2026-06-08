@@ -34,10 +34,8 @@ contract SafeRouter {
         uint256 position,
         uint256 signatureCount
     );
-    error InsufficientSafeSignatures(
-        uint256 providedWithRouter,
-        uint256 threshold
-    );
+    error InsufficientSafeSignatures(uint256 provided, uint256 threshold);
+    error InvalidSafeThreshold(uint256 threshold);
     error MetadataBalancesLengthMismatch(
         uint256 metaLength,
         uint256 balancesLength
@@ -52,8 +50,8 @@ contract SafeRouter {
 
     function safeExecuteWithPostBalances(
         IBalanceProxy balanceProxy,
-        ISafe safe,
         IBalanceProxy.Balance[] calldata postBalances,
+        ISafe safe,
         SafeTx calldata safeTx
     ) external {
         _verifySafeContext(safe);
@@ -69,8 +67,8 @@ contract SafeRouter {
 
     function safeExecuteWithDiffs(
         IBalanceProxy balanceProxy,
-        ISafe safe,
         IBalanceProxy.Balance[] calldata diffs,
+        ISafe safe,
         SafeTx calldata safeTx
     ) external {
         _verifySafeContext(safe);
@@ -80,9 +78,9 @@ contract SafeRouter {
 
     function safeExecuteWithPostBalancesMeta(
         IBalanceProxy balanceProxy,
-        ISafe safe,
         BalanceMetadata[] calldata meta,
         IBalanceProxy.Balance[] calldata postBalances,
+        ISafe safe,
         SafeTx calldata safeTx
     ) external {
         _verifySafeContext(safe);
@@ -99,9 +97,9 @@ contract SafeRouter {
 
     function safeExecuteWithDiffsMeta(
         IBalanceProxy balanceProxy,
-        ISafe safe,
         BalanceMetadata[] calldata meta,
         IBalanceProxy.Balance[] calldata diffs,
+        ISafe safe,
         SafeTx calldata safeTx
     ) external {
         _verifySafeContext(safe);
@@ -136,7 +134,7 @@ contract SafeRouter {
         bytes memory signatures = _buildSignatures(
             safeTx.signatures,
             safeTx.routerSigPosition,
-            safe.getThreshold()
+            safe.getThreshold() - 1
         );
 
         bool success = safe.execTransaction(
@@ -158,11 +156,30 @@ contract SafeRouter {
         if (safeTx.operation != Enum.Operation.Call) {
             revert UnsupportedSafeOperation(safeTx.operation);
         }
-        _validateSignatures(
-            safeTx.signatures,
-            safeTx.routerSigPosition,
-            safe.getThreshold()
-        );
+
+        uint256 threshold = safe.getThreshold();
+        if (threshold < 2) {
+            revert InvalidSafeThreshold(threshold);
+        }
+
+        if (safeTx.signatures.length % 65 != 0) {
+            revert InvalidSignaturesLength(safeTx.signatures.length);
+        }
+
+        uint256 requiredHumanSignatures = threshold - 1;
+        uint256 provided = safeTx.signatures.length / 65;
+        if (safeTx.routerSigPosition > requiredHumanSignatures) {
+            revert InvalidRouterSignaturePosition(
+                safeTx.routerSigPosition,
+                provided
+            );
+        }
+        if (provided < requiredHumanSignatures) {
+            revert InsufficientSafeSignatures(
+                provided,
+                requiredHumanSignatures
+            );
+        }
     }
 
     function _executeWithBalanceProxy(
@@ -240,42 +257,20 @@ contract SafeRouter {
     function _buildSignatures(
         bytes calldata existingSigs,
         uint256 routerSigPosition,
-        uint256 threshold
+        uint256 requiredHumanSignatures
     ) internal view returns (bytes memory) {
-        _validateSignatures(existingSigs, routerSigPosition, threshold);
-
         bytes memory routerSig = abi.encodePacked(
             bytes32(uint256(uint160(address(this)))),
             bytes32(0),
             uint8(1)
         );
 
+        uint256 humanSignaturesLength = requiredHumanSignatures * 65;
         return
             abi.encodePacked(
                 existingSigs[:routerSigPosition * 65],
                 routerSig,
-                existingSigs[routerSigPosition * 65:]
+                existingSigs[routerSigPosition * 65:humanSignaturesLength]
             );
-    }
-
-    function _validateSignatures(
-        bytes calldata existingSigs,
-        uint256 routerSigPosition,
-        uint256 threshold
-    ) internal pure {
-        if (existingSigs.length % 65 != 0) {
-            revert InvalidSignaturesLength(existingSigs.length);
-        }
-
-        uint256 existingCount = existingSigs.length / 65;
-        if (routerSigPosition > existingCount) {
-            revert InvalidRouterSignaturePosition(
-                routerSigPosition,
-                existingCount
-            );
-        }
-        if (existingCount + 1 < threshold) {
-            revert InsufficientSafeSignatures(existingCount + 1, threshold);
-        }
     }
 }
