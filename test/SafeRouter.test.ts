@@ -7,7 +7,9 @@ import {
   encodeFunctionData,
   padHex,
   parseEther,
+  type Abi,
   type Address,
+  type GetContractReturnType,
   type Hex,
   zeroAddress,
 } from 'viem';
@@ -88,23 +90,67 @@ function approvedHashSignature(owner: Address): Hex {
   return `${padHex(owner, { size: 32 })}${'0'.repeat(64)}01` as Hex;
 }
 
-function routerSignaturePosition(
-  existingOwners: Address[],
-  router: Address,
-): bigint {
+function sortOwners(owners: Address[]): Address[] {
+  return [...owners].sort((left, right) =>
+    BigInt(left) < BigInt(right) ? -1 : 1,
+  );
+}
+
+function routerSignaturePosition(humanOwners: Address[], router: Address) {
   const routerValue = BigInt(router);
   return BigInt(
-    existingOwners.filter((owner) => BigInt(owner) < routerValue).length,
+    humanOwners.filter((owner) => BigInt(owner) < routerValue).length,
   );
 }
 
 function approvedHashSignatures(owners: Address[]): Hex {
-  const sortedOwners = [...owners].sort((left, right) =>
-    BigInt(left) < BigInt(right) ? -1 : 1,
-  );
-  return `0x${sortedOwners
+  return `0x${sortOwners(owners)
     .map((owner) => approvedHashSignature(owner).slice(2))
     .join('')}` as Hex;
+}
+
+async function getSafeTxHash(
+  safe: GetContractReturnType<Abi>,
+  tx: SafeTx,
+): Promise<Hex> {
+  const nonce = await safe.read.nonce();
+  return await safe.read.getTransactionHash([
+    tx.to,
+    tx.value,
+    tx.data,
+    tx.operation,
+    tx.safeTxGas,
+    tx.baseGas,
+    tx.gasPrice,
+    tx.gasToken,
+    tx.refundReceiver,
+    nonce,
+  ]);
+}
+
+async function safeTxWithApprovals(
+  safe: GetContractReturnType<Abi>,
+  tx: SafeTx,
+  router: Address,
+  owners: Array<{ account: { address: Address } }>,
+): Promise<SafeTx> {
+  const safeTxHash = await getSafeTxHash(safe, tx);
+  for (const owner of owners) {
+    await safe.write.approveHash([safeTxHash], { account: owner.account });
+  }
+
+  const ownerAddresses = owners.map((owner) => owner.account.address);
+  const requiredHumanSignatures = Number((await safe.read.getThreshold()) - 1n);
+  const selectedOwners = sortOwners(ownerAddresses).slice(
+    0,
+    requiredHumanSignatures,
+  );
+
+  return {
+    ...tx,
+    signatures: approvedHashSignatures(ownerAddresses),
+    routerSigPosition: routerSignaturePosition(selectedOwners, router),
+  };
 }
 
 async function deployFixture() {
@@ -121,7 +167,9 @@ async function deployFixture() {
   const safeRouter = await viem.deployContract('SafeRouter', []);
 
   await safe.write.addOwner([owner.account.address]);
+  await safe.write.addOwner([signer.account.address]);
   await safe.write.addOwner([safeRouter.address]);
+  await safe.write.setThreshold([2n]);
 
   return {
     owner,
@@ -172,7 +220,7 @@ async function deployRealSafeFixture() {
   await realSafe.write.setup(
     [
       [signer.account.address, executor.account.address, safeRouter.address],
-      2n,
+      3n,
       ZERO_ADDRESS,
       '0x',
       ZERO_ADDRESS,
@@ -203,14 +251,50 @@ describe('SafeRouter', function () {
     await safeRouter.write.safeExecuteWithPostBalances(
       [
         balanceProxy.address,
-        safe.address,
         [{ target: safe.address, token: token.address, balance: GIVE }],
-        safeTx({ to: target.address, data: swapData }),
+        safe.address,
+        await safeTxWithApprovals(
+          safe,
+          safeTx({ to: target.address, data: swapData }),
+          safeRouter.address,
+          [owner],
+        ),
       ],
       { account: owner.account },
     );
 
     expect(await token.read.balanceOf([safe.address])).to.equal(GIVE);
+    expect(await safe.read.lastSignaturesLength()).to.equal(130n);
+  });
+
+  it('trims over-threshold human signatures before adding the router marker', async () => {
+    const { owner, signer, balanceProxy, token, target, safe, safeRouter } =
+      await loadFixture(deployFixture);
+
+    const GIVE = parseEther('5');
+    const swapData = encodeFunctionData({
+      abi: mintAbi,
+      functionName: 'mint',
+      args: [0n, GIVE],
+    });
+
+    await safeRouter.write.safeExecuteWithPostBalances(
+      [
+        balanceProxy.address,
+        [{ target: safe.address, token: token.address, balance: GIVE }],
+        safe.address,
+        await safeTxWithApprovals(
+          safe,
+          safeTx({ to: target.address, data: swapData }),
+          safeRouter.address,
+          [owner, signer],
+        ),
+      ],
+      { account: owner.account },
+    );
+
+    expect(await token.read.balanceOf([safe.address])).to.equal(GIVE);
+    expect(await safe.read.lastSignaturesLength()).to.equal(130n);
   });
 
   it('executes original tx via Safe then verifies balance diffs for that tx', async () => {
@@ -227,9 +311,14 @@ describe('SafeRouter', function () {
     await safeRouter.write.safeExecuteWithDiffs(
       [
         balanceProxy.address,
-        safe.address,
         [{ target: safe.address, token: token.address, balance: GIVE }],
-        safeTx({ to: target.address, data: swapData }),
+        safe.address,
+        await safeTxWithApprovals(
+          safe,
+          safeTx({ to: target.address, data: swapData }),
+          safeRouter.address,
+          [owner],
+        ),
       ],
       { account: owner.account },
     );
@@ -253,9 +342,14 @@ describe('SafeRouter', function () {
     await safeRouter.write.safeExecuteWithPostBalances(
       [
         balanceProxy.address,
-        safe.address,
         [{ target: safe.address, token: ZERO_ADDRESS, balance: GIVE_ETH }],
-        safeTx({ to: target.address, data: swapData }),
+        safe.address,
+        await safeTxWithApprovals(
+          safe,
+          safeTx({ to: target.address, data: swapData }),
+          safeRouter.address,
+          [owner],
+        ),
       ],
       { account: owner.account },
     );
@@ -280,9 +374,14 @@ describe('SafeRouter', function () {
       safeRouter.write.safeExecuteWithPostBalances(
         [
           balanceProxy.address,
-          safe.address,
           [{ target: safe.address, token: token.address, balance: GIVE + 1n }],
-          safeTx({ to: target.address, data: swapData }),
+          safe.address,
+          await safeTxWithApprovals(
+            safe,
+            safeTx({ to: target.address, data: swapData }),
+            safeRouter.address,
+            [owner],
+          ),
         ],
         { account: owner.account },
       ),
@@ -306,9 +405,14 @@ describe('SafeRouter', function () {
       safeRouter.write.safeExecuteWithDiffs(
         [
           balanceProxy.address,
-          safe.address,
           [{ target: safe.address, token: token.address, balance: GIVE + 1n }],
-          safeTx({ to: target.address, data: swapData }),
+          safe.address,
+          await safeTxWithApprovals(
+            safe,
+            safeTx({ to: target.address, data: swapData }),
+            safeRouter.address,
+            [owner],
+          ),
         ],
         { account: owner.account },
       ),
@@ -331,7 +435,6 @@ describe('SafeRouter', function () {
       safeRouter.write.safeExecuteWithPostBalances(
         [
           balanceProxy.address,
-          safe.address,
           [
             {
               target: safe.address,
@@ -339,6 +442,7 @@ describe('SafeRouter', function () {
               balance: parseEther('1'),
             },
           ],
+          safe.address,
           safeTx({ to: target.address, data: swapData }),
         ],
         { account: stranger.account },
@@ -363,7 +467,6 @@ describe('SafeRouter', function () {
       safeRouter.write.safeExecuteWithPostBalances(
         [
           balanceProxy.address,
-          safeWithoutRouter.address,
           [
             {
               target: safeWithoutRouter.address,
@@ -371,17 +474,27 @@ describe('SafeRouter', function () {
               balance: parseEther('1'),
             },
           ],
-          safeTx({ to: target.address, data: swapData }),
+          safeWithoutRouter.address,
+          await safeTxWithApprovals(
+            safeWithoutRouter,
+            safeTx({ to: target.address, data: swapData }),
+            safeRouter.address,
+            [owner],
+          ),
         ],
         { account: owner.account },
       ),
     ).to.be.rejectedWith('RouterNotSafeOwner');
+
+    expect(await token.read.balanceOf([safeWithoutRouter.address])).to.equal(
+      0n,
+    );
   });
 
-  it('reverts before Safe execution when existing signatures plus router cannot meet threshold', async () => {
+  it('reverts before Safe execution when only one human approved a 2-human Safe', async () => {
     const { owner, balanceProxy, token, target, safe, safeRouter } =
       await loadFixture(deployFixture);
-    await safe.write.setThreshold([2n]);
+    await safe.write.setThreshold([3n]);
 
     const swapData = encodeFunctionData({
       abi: mintAbi,
@@ -393,7 +506,6 @@ describe('SafeRouter', function () {
       safeRouter.write.safeExecuteWithPostBalances(
         [
           balanceProxy.address,
-          safe.address,
           [
             {
               target: safe.address,
@@ -401,11 +513,125 @@ describe('SafeRouter', function () {
               balance: parseEther('1'),
             },
           ],
-          safeTx({ to: target.address, data: swapData }),
+          safe.address,
+          await safeTxWithApprovals(
+            safe,
+            safeTx({ to: target.address, data: swapData }),
+            safeRouter.address,
+            [owner],
+          ),
         ],
         { account: owner.account },
       ),
     ).to.be.rejectedWith('InsufficientSafeSignatures');
+  });
+
+  it('reverts through Safe when the router marker is used as a human signature', async () => {
+    const { owner, balanceProxy, token, target, safe, safeRouter } =
+      await loadFixture(deployFixture);
+
+    const swapData = encodeFunctionData({
+      abi: mintAbi,
+      functionName: 'mint',
+      args: [0n, parseEther('1')],
+    });
+
+    await expect(
+      safeRouter.write.safeExecuteWithPostBalances(
+        [
+          balanceProxy.address,
+          [
+            {
+              target: safe.address,
+              token: token.address,
+              balance: parseEther('1'),
+            },
+          ],
+          safe.address,
+          safeTx({
+            to: target.address,
+            data: swapData,
+            signatures: approvedHashSignature(safeRouter.address),
+          }),
+        ],
+        { account: owner.account },
+      ),
+    ).to.be.rejectedWith('ERC8009CallFailed');
+  });
+
+  it('reverts before Safe execution when signatures are not 65-byte aligned', async () => {
+    const { owner, balanceProxy, token, target, safe, safeRouter } =
+      await loadFixture(deployFixture);
+
+    const swapData = encodeFunctionData({
+      abi: mintAbi,
+      functionName: 'mint',
+      args: [0n, parseEther('1')],
+    });
+    const approvedTx = await safeTxWithApprovals(
+      safe,
+      safeTx({ to: target.address, data: swapData }),
+      safeRouter.address,
+      [owner],
+    );
+
+    await expect(
+      safeRouter.write.safeExecuteWithPostBalances(
+        [
+          balanceProxy.address,
+          [
+            {
+              target: safe.address,
+              token: token.address,
+              balance: parseEther('1'),
+            },
+          ],
+          safe.address,
+          {
+            ...approvedTx,
+            signatures: `${approvedTx.signatures}00` as Hex,
+          },
+        ],
+        { account: owner.account },
+      ),
+    ).to.be.rejectedWith('InvalidSignaturesLength');
+  });
+
+  it('reverts before Safe execution when router signature position is outside the used human signatures', async () => {
+    const { owner, balanceProxy, token, target, safe, safeRouter } =
+      await loadFixture(deployFixture);
+
+    const swapData = encodeFunctionData({
+      abi: mintAbi,
+      functionName: 'mint',
+      args: [0n, parseEther('1')],
+    });
+
+    await expect(
+      safeRouter.write.safeExecuteWithPostBalances(
+        [
+          balanceProxy.address,
+          [
+            {
+              target: safe.address,
+              token: token.address,
+              balance: parseEther('1'),
+            },
+          ],
+          safe.address,
+          {
+            ...(await safeTxWithApprovals(
+              safe,
+              safeTx({ to: target.address, data: swapData }),
+              safeRouter.address,
+              [owner],
+            )),
+            routerSigPosition: 2n,
+          },
+        ],
+        { account: owner.account },
+      ),
+    ).to.be.rejectedWith('InvalidRouterSignaturePosition');
   });
 
   it('reverts before Safe execution when operation is not Call', async () => {
@@ -423,8 +649,8 @@ describe('SafeRouter', function () {
       safeRouter.write.safeExecuteWithPostBalances(
         [
           balanceProxy.address,
-          safe.address,
           [{ target: safe.address, token: token.address, balance: GIVE }],
+          safe.address,
           safeTx({ to: target.address, data: swapData, operation: 1 }),
         ],
         { account: owner.account },
@@ -448,10 +674,15 @@ describe('SafeRouter', function () {
     await safeRouter.write.safeExecuteWithPostBalancesMeta(
       [
         balanceProxy.address,
-        safe.address,
         [{ symbol: 'MTK', decimals: 18 }],
         [{ target: safe.address, token: token.address, balance: GIVE }],
-        safeTx({ to: target.address, data: swapData }),
+        safe.address,
+        await safeTxWithApprovals(
+          safe,
+          safeTx({ to: target.address, data: swapData }),
+          safeRouter.address,
+          [owner],
+        ),
       ],
       { account: owner.account },
     );
@@ -473,7 +704,6 @@ describe('SafeRouter', function () {
       safeRouter.write.safeExecuteWithPostBalancesMeta(
         [
           balanceProxy.address,
-          safe.address,
           [{ symbol: 'WRONG', decimals: 18 }],
           [
             {
@@ -482,7 +712,13 @@ describe('SafeRouter', function () {
               balance: parseEther('1'),
             },
           ],
-          safeTx({ to: target.address, data: swapData }),
+          safe.address,
+          await safeTxWithApprovals(
+            safe,
+            safeTx({ to: target.address, data: swapData }),
+            safeRouter.address,
+            [owner],
+          ),
         ],
         { account: owner.account },
       ),
@@ -503,7 +739,6 @@ describe('SafeRouter', function () {
       safeRouter.write.safeExecuteWithPostBalancesMeta(
         [
           balanceProxy.address,
-          safe.address,
           [{ symbol: 'MTK', decimals: 6 }],
           [
             {
@@ -512,7 +747,13 @@ describe('SafeRouter', function () {
               balance: parseEther('1'),
             },
           ],
-          safeTx({ to: target.address, data: swapData }),
+          safe.address,
+          await safeTxWithApprovals(
+            safe,
+            safeTx({ to: target.address, data: swapData }),
+            safeRouter.address,
+            [owner],
+          ),
         ],
         { account: owner.account },
       ),
@@ -535,10 +776,15 @@ describe('SafeRouter', function () {
     await safeRouter.write.safeExecuteWithPostBalancesMeta(
       [
         balanceProxy.address,
-        safe.address,
         [{ symbol: 'ETH', decimals: 18 }],
         [{ target: safe.address, token: ZERO_ADDRESS, balance: GIVE_ETH }],
-        safeTx({ to: target.address, data: swapData }),
+        safe.address,
+        await safeTxWithApprovals(
+          safe,
+          safeTx({ to: target.address, data: swapData }),
+          safeRouter.address,
+          [owner],
+        ),
       ],
       { account: owner.account },
     );
@@ -548,7 +794,7 @@ describe('SafeRouter', function () {
     );
   });
 
-  it('executes through the real Safe using one human approval plus the router owner slot', async () => {
+  it('reverts through the real Safe when only one human approved before wrapping', async () => {
     const {
       signer,
       executor,
@@ -583,32 +829,35 @@ describe('SafeRouter', function () {
       account: signer.account,
     });
 
-    await safeRouter.write.safeExecuteWithDiffs(
-      [
-        balanceProxy.address,
-        realSafe.address,
-        [{ target: realSafe.address, token: token.address, balance: GIVE }],
-        safeTx({
-          to: target.address,
-          data: swapData,
-          signatures: approvedHashSignature(signer.account.address),
-          routerSigPosition: routerSignaturePosition(
-            [signer.account.address],
-            safeRouter.address,
-          ),
-        }),
-      ],
-      { account: executor.account },
-    );
+    await expect(
+      safeRouter.write.safeExecuteWithDiffs(
+        [
+          balanceProxy.address,
+          [{ target: realSafe.address, token: token.address, balance: GIVE }],
+          realSafe.address,
+          safeTx({
+            to: target.address,
+            data: swapData,
+            signatures: approvedHashSignature(signer.account.address),
+            routerSigPosition: routerSignaturePosition(
+              [signer.account.address],
+              safeRouter.address,
+            ),
+          }),
+        ],
+        { account: executor.account },
+      ),
+    ).to.be.rejectedWith('InsufficientSafeSignatures');
 
-    expect(await token.read.balanceOf([realSafe.address])).to.equal(GIVE);
-    expect(await realSafe.read.nonce()).to.equal(nonce + 1n);
+    expect(await token.read.balanceOf([realSafe.address])).to.equal(0n);
+    expect(await realSafe.read.nonce()).to.equal(nonce);
   });
 
-  it('allows execution when the human threshold was already satisfied before wrapping', async () => {
+  it('prevents leaked human signatures from executing directly through Safe', async () => {
     const {
       signer,
       executor,
+      stranger,
       balanceProxy,
       token,
       target,
@@ -644,15 +893,82 @@ describe('SafeRouter', function () {
     });
 
     const humanOwners = [signer.account.address, executor.account.address];
+    const humanSignatures = approvedHashSignatures(humanOwners);
+
+    await expect(
+      realSafe.write.execTransaction(
+        [
+          target.address,
+          0n,
+          swapData,
+          0,
+          0n,
+          0n,
+          0n,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          humanSignatures,
+        ],
+        { account: stranger.account },
+      ),
+    ).to.be.rejected;
+
+    await expect(
+      safeRouter.write.safeExecuteWithDiffs(
+        [
+          balanceProxy.address,
+          [
+            {
+              target: realSafe.address,
+              token: token.address,
+              balance: GIVE + 1n,
+            },
+          ],
+          realSafe.address,
+          safeTx({
+            to: target.address,
+            data: swapData,
+            signatures: humanSignatures,
+            routerSigPosition: routerSignaturePosition(
+              humanOwners,
+              safeRouter.address,
+            ),
+          }),
+        ],
+        { account: executor.account },
+      ),
+    ).to.be.rejectedWith('ERC8009BalanceDiffConstraintViolation');
+
+    expect(await token.read.balanceOf([realSafe.address])).to.equal(0n);
+    expect(await realSafe.read.nonce()).to.equal(nonce);
+
+    await expect(
+      realSafe.write.execTransaction(
+        [
+          target.address,
+          0n,
+          swapData,
+          0,
+          0n,
+          0n,
+          0n,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          humanSignatures,
+        ],
+        { account: stranger.account },
+      ),
+    ).to.be.rejected;
+
     await safeRouter.write.safeExecuteWithDiffs(
       [
         balanceProxy.address,
-        realSafe.address,
         [{ target: realSafe.address, token: token.address, balance: GIVE }],
+        realSafe.address,
         safeTx({
           to: target.address,
           data: swapData,
-          signatures: approvedHashSignatures(humanOwners),
+          signatures: humanSignatures,
           routerSigPosition: routerSignaturePosition(
             humanOwners,
             safeRouter.address,
@@ -664,5 +980,211 @@ describe('SafeRouter', function () {
 
     expect(await token.read.balanceOf([realSafe.address])).to.equal(GIVE);
     expect(await realSafe.read.nonce()).to.equal(nonce + 1n);
+  });
+
+  it('supports a 3-of-5 Safe policy without counting the router owner as a human approval', async () => {
+    const {
+      owner,
+      signer,
+      executor,
+      stranger,
+      publicClient,
+      balanceProxy,
+      token,
+      target,
+      safeRouter,
+    } = await loadFixture(deployFixture);
+    const [, , , , fifthOwner] = await viem.getWalletClients();
+
+    const singletonHash = await owner.deployContract({
+      abi: safeArtifact.abi,
+      bytecode: safeArtifact.bytecode as Hex,
+    });
+    const singletonReceipt = await publicClient.waitForTransactionReceipt({
+      hash: singletonHash,
+    });
+    if (!singletonReceipt.contractAddress) {
+      throw new Error('Safe singleton deployment did not return an address');
+    }
+
+    const proxyHash = await owner.deployContract({
+      abi: safeProxyArtifact.abi,
+      bytecode: safeProxyArtifact.bytecode as Hex,
+      args: [singletonReceipt.contractAddress],
+    });
+    const proxyReceipt = await publicClient.waitForTransactionReceipt({
+      hash: proxyHash,
+    });
+    if (!proxyReceipt.contractAddress) {
+      throw new Error('Safe proxy deployment did not return an address');
+    }
+
+    const realSafe = await viem.getContractAt(
+      'ISafe',
+      proxyReceipt.contractAddress,
+    );
+    const humanOwners = [
+      owner.account.address,
+      signer.account.address,
+      executor.account.address,
+      stranger.account.address,
+      fifthOwner.account.address,
+    ];
+
+    await realSafe.write.setup(
+      [
+        [...humanOwners, safeRouter.address],
+        4n,
+        ZERO_ADDRESS,
+        '0x',
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        0n,
+        ZERO_ADDRESS,
+      ],
+      { account: owner.account },
+    );
+
+    const GIVE = parseEther('19');
+    const swapData = encodeFunctionData({
+      abi: mintAbi,
+      functionName: 'mint',
+      args: [0n, GIVE],
+    });
+    const nonce = await realSafe.read.nonce();
+    const safeTxHash = await realSafe.read.getTransactionHash([
+      target.address,
+      0n,
+      swapData,
+      0,
+      0n,
+      0n,
+      0n,
+      ZERO_ADDRESS,
+      ZERO_ADDRESS,
+      nonce,
+    ]);
+
+    for (const account of [owner.account, signer.account]) {
+      await realSafe.write.approveHash([safeTxHash], { account });
+    }
+
+    const twoHumanOwners = [owner.account.address, signer.account.address];
+    await expect(
+      safeRouter.write.safeExecuteWithDiffs(
+        [
+          balanceProxy.address,
+          [{ target: realSafe.address, token: token.address, balance: GIVE }],
+          realSafe.address,
+          safeTx({
+            to: target.address,
+            data: swapData,
+            signatures: approvedHashSignatures(twoHumanOwners),
+            routerSigPosition: routerSignaturePosition(
+              twoHumanOwners,
+              safeRouter.address,
+            ),
+          }),
+        ],
+        { account: owner.account },
+      ),
+    ).to.be.rejectedWith('InsufficientSafeSignatures');
+
+    await realSafe.write.approveHash([safeTxHash], {
+      account: executor.account,
+    });
+
+    const threeHumanOwners = [
+      owner.account.address,
+      signer.account.address,
+      executor.account.address,
+    ];
+
+    await safeRouter.write.safeExecuteWithDiffs(
+      [
+        balanceProxy.address,
+        [{ target: realSafe.address, token: token.address, balance: GIVE }],
+        realSafe.address,
+        safeTx({
+          to: target.address,
+          data: swapData,
+          signatures: approvedHashSignatures(threeHumanOwners),
+          routerSigPosition: routerSignaturePosition(
+            threeHumanOwners,
+            safeRouter.address,
+          ),
+        }),
+      ],
+      { account: owner.account },
+    );
+
+    expect(await token.read.balanceOf([realSafe.address])).to.equal(GIVE);
+    expect(await realSafe.read.nonce()).to.equal(nonce + 1n);
+
+    const EXTRA_GIVE = parseEther('7');
+    const extraSwapData = encodeFunctionData({
+      abi: mintAbi,
+      functionName: 'mint',
+      args: [0n, EXTRA_GIVE],
+    });
+    const extraNonce = await realSafe.read.nonce();
+    const extraSafeTxHash = await realSafe.read.getTransactionHash([
+      target.address,
+      0n,
+      extraSwapData,
+      0,
+      0n,
+      0n,
+      0n,
+      ZERO_ADDRESS,
+      ZERO_ADDRESS,
+      extraNonce,
+    ]);
+
+    for (const account of [
+      owner.account,
+      signer.account,
+      executor.account,
+      stranger.account,
+    ]) {
+      await realSafe.write.approveHash([extraSafeTxHash], { account });
+    }
+
+    const fourHumanOwners = [
+      owner.account.address,
+      signer.account.address,
+      executor.account.address,
+      stranger.account.address,
+    ];
+    const selectedOwners = sortOwners(fourHumanOwners).slice(0, 3);
+
+    await safeRouter.write.safeExecuteWithDiffs(
+      [
+        balanceProxy.address,
+        [
+          {
+            target: realSafe.address,
+            token: token.address,
+            balance: EXTRA_GIVE,
+          },
+        ],
+        realSafe.address,
+        safeTx({
+          to: target.address,
+          data: extraSwapData,
+          signatures: approvedHashSignatures(fourHumanOwners),
+          routerSigPosition: routerSignaturePosition(
+            selectedOwners,
+            safeRouter.address,
+          ),
+        }),
+      ],
+      { account: owner.account },
+    );
+
+    expect(await token.read.balanceOf([realSafe.address])).to.equal(
+      GIVE + EXTRA_GIVE,
+    );
+    expect(await realSafe.read.nonce()).to.equal(nonce + 2n);
   });
 });
